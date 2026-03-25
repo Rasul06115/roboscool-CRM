@@ -1,0 +1,302 @@
+// ============================================
+// 🤖 ROBOSCHOOL CRM — Database Schema v2.1
+// PostgreSQL + Prisma ORM
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== FOYDALANUVCHILAR ====================
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  TEACHER
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  password     String
+  fullName     String   @map("full_name")
+  phone        String?
+  role         UserRole @default(MANAGER)
+  avatar       String?
+  isActive     Boolean  @default(true) @map("is_active")
+  telegramId   String?  @map("telegram_id")
+  refreshToken String?  @map("refresh_token")
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+// ==================== KURSLAR ====================
+
+model Course {
+  id          String   @id @default(uuid())
+  name        String
+  icon        String   @default("📚")
+  color       String   @default("#0D9488")
+  ageRange    String?  @map("age_range")
+  duration    String?
+  price       Int      @default(0)
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  groups Group[]
+
+  @@map("courses")
+}
+
+// ==================== O'QITUVCHILAR ====================
+
+model Teacher {
+  id             String   @id @default(uuid())
+  fullName       String   @map("full_name")
+  phone          String?
+  email          String?
+  specialization String?
+  salary         Int      @default(0)
+  avatar         String?
+  telegramId     String?  @map("telegram_id")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  groups Group[]
+
+  @@map("teachers")
+}
+
+// ==================== GURUHLAR ====================
+
+model Group {
+  id        String    @id @default(uuid())
+  name      String
+  courseId   String    @map("course_id")
+  teacherId  String   @map("teacher_id")
+  schedule  String?
+  maxSize   Int       @default(12) @map("max_size")
+  startDate DateTime? @map("start_date")
+  endDate   DateTime? @map("end_date")
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  course     Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  teacher    Teacher     @relation(fields: [teacherId], references: [id])
+  students   Student[]
+  attendance Attendance[]
+
+  @@map("groups")
+}
+
+// ==================== O'QUVCHILAR ====================
+
+enum StudentStatus {
+  ACTIVE
+  INACTIVE
+  GRADUATED
+  EXPELLED
+}
+
+model Student {
+  id            String        @id @default(uuid())
+  fullName      String        @map("full_name")
+  age           Int?
+  birthDate     DateTime?     @map("birth_date")
+  metrikaNumber String?       @map("metrika_number")
+  fatherName    String?       @map("father_name")
+  fatherPhone   String?       @map("father_phone")
+  motherName    String?       @map("mother_name")
+  motherPhone   String?       @map("mother_phone")
+  parentPhone   String        @map("parent_phone")
+  parentEmail   String?       @map("parent_email")
+  address       String?
+  groupId       String?       @map("group_id")
+  balance       Int           @default(0)
+  progress      Int           @default(0)
+  status        StudentStatus @default(ACTIVE)
+  avatar        String?
+  telegramId    String?       @map("telegram_id")
+  enrollDate    DateTime      @default(now()) @map("enroll_date")
+  notes         String?
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  group      Group?       @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  payments   Payment[]
+  attendance Attendance[]
+  documents  Document[]
+
+  @@map("students")
+}
+
+// ==================== DAVOMAT ====================
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+model Attendance {
+  id        String           @id @default(uuid())
+  studentId String           @map("student_id")
+  groupId   String           @map("group_id")
+  date      DateTime         @db.Date
+  status    AttendanceStatus @default(PRESENT)
+  note      String?
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  group   Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, date])
+  @@index([groupId, date])
+  @@map("attendance")
+}
+
+// ==================== TO'LOVLAR ====================
+
+enum PaymentMethod {
+  CASH
+  CLICK
+  PAYME
+  BANK_TRANSFER
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  studentId     String        @map("student_id")
+  amount        Int
+  paymentMethod PaymentMethod @default(CASH) @map("payment_method")
+  paymentDate   DateTime      @default(now()) @map("payment_date")
+  monthFor      String?       @map("month_for")
+  note          String?
+  receiptUrl    String?       @map("receipt_url")
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([paymentDate])
+  @@map("payments")
+}
+
+// ==================== LEADLAR ====================
+
+enum LeadSource {
+  INSTAGRAM
+  TELEGRAM
+  REFERRAL
+  WEBSITE
+  FACEBOOK
+  OTHER
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  TRIAL_SCHEDULED
+  TRIAL_DONE
+  CONVERTED
+  LOST
+}
+
+model Lead {
+  id         String     @id @default(uuid())
+  fullName   String     @map("full_name")
+  phone      String
+  source     LeadSource @default(OTHER)
+  interest   String?
+  status     LeadStatus @default(NEW)
+  trialDate  DateTime?  @map("trial_date")
+  lossReason String?    @map("loss_reason")
+  notes      String?
+  assignedTo String?    @map("assigned_to")
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([source])
+  @@map("leads")
+}
+
+// ==================== XARAJATLAR ====================
+
+enum ExpenseCategory {
+  RENT
+  SALARY
+  EQUIPMENT
+  MARKETING
+  UTILITIES
+  OTHER
+}
+
+model Expense {
+  id          String          @id @default(uuid())
+  category    ExpenseCategory
+  amount      Int
+  description String?
+  expenseDate DateTime        @default(now()) @map("expense_date")
+  receiptUrl  String?         @map("receipt_url")
+  createdAt   DateTime        @default(now()) @map("created_at")
+
+  @@index([expenseDate])
+  @@map("expenses")
+}
+
+// ==================== HUJJATLAR ====================
+
+model Document {
+  id        String   @id @default(uuid())
+  studentId String?  @map("student_id")
+  fileName  String   @map("file_name")
+  filePath  String   @map("file_path")
+  fileType  String   @map("file_type")
+  fileSize  Int      @map("file_size")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  student Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
+
+  @@map("documents")
+}
+
+// ==================== SMS LOG ====================
+
+model SmsLog {
+  id        String   @id @default(uuid())
+  phone     String
+  message   String
+  status    String   @default("pending")
+  provider  String   @default("eskiz")
+  errorMsg  String?  @map("error_msg")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("sms_logs")
+}
+
+// ==================== NOTIFICATION LOG ====================
+
+model NotificationLog {
+  id        String   @id @default(uuid())
+  type      String
+  recipient String
+  message   String
+  status    String   @default("sent")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("notification_logs")
+}

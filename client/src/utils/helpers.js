@@ -1,0 +1,5 @@
+export const formatMoney = (n) => { if (!n && n !== 0) return '0'; return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' '); };
+export const formatDate = (d) => { if (!d) return '—'; return new Date(d).toLocaleDateString('uz-UZ', { year: 'numeric', month: 'short', day: 'numeric' }); };
+export const getLeadStatusInfo = (s) => { const m = { NEW: { l: 'Yangi', c: 'bg-blue-50 text-blue-700' }, CONTACTED: { l: 'Bog\'lanildi', c: 'bg-cyan-50 text-cyan-700' }, TRIAL_SCHEDULED: { l: 'Sinov belgilangan', c: 'bg-yellow-50 text-yellow-700' }, TRIAL_DONE: { l: "Sinov o'tdi", c: 'bg-purple-50 text-purple-700' }, CONVERTED: { l: "O'quvchi bo'ldi", c: 'bg-green-50 text-green-700' }, LOST: { l: "Yo'qolgan", c: 'bg-red-50 text-red-700' } }; return m[s] || m.NEW; };
+export const getPaymentMethodLabel = (m) => ({ CASH: 'Naqd', CLICK: 'Click', PAYME: 'Payme', BANK_TRANSFER: "Bank o'tkazmasi" }[m] || m);
+export const getSourceColor = (s) => ({ INSTAGRAM: 'bg-pink-50 text-pink-700', TELEGRAM: 'bg-blue-50 text-blue-700', REFERRAL: 'bg-green-50 text-green-700', WEBSITE: 'bg-purple-50 text-purple-700', OTHER: 'bg-gray-50 text-gray-700' }[s] || 'bg-gray-50 text-gray-700');
