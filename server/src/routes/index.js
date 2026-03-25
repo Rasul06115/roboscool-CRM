@@ -1,31 +1,29 @@
 const router = require('express').Router();
 const { authenticate, authorize } = require('../middleware/auth');
 const { authValidation, studentValidation, paymentValidation, leadValidation } = require('../middleware/validation');
-const { uploadAvatar, uploadDocument, uploadMultiple } = require('../middleware/upload');
+const { uploadAvatar, uploadDocument } = require('../middleware/upload');
 
-// Controllers
 const authCtrl = require('../controllers/authController');
 const studentCtrl = require('../controllers/studentController');
 const cgCtrl = require('../controllers/courseGroupController');
 const paymentCtrl = require('../controllers/paymentController');
 const leadCtrl = require('../controllers/leadController');
-const daCtrl = require('../controllers/dashboardAttendanceController');
+const attCtrl = require('../controllers/attendanceController');
 const sfCtrl = require('../controllers/smsFileController');
 
-// ==================== AUTH (ochiq) ====================
+// ==================== AUTH ====================
 router.post('/auth/login', authValidation.login, authCtrl.login);
 router.post('/auth/refresh', authCtrl.refreshToken);
 
-// ==================== HIMOYALANGAN ROUTELAR ====================
-router.use(authenticate); // << Shu qatordan keyin barcha routelar himoyalangan
+// ==================== HIMOYALANGAN ====================
+router.use(authenticate);
 
-// Auth
 router.get('/auth/me', authCtrl.getMe);
 router.put('/auth/password', authCtrl.changePassword);
 router.post('/auth/register', authorize('ADMIN'), authValidation.register, authCtrl.register);
 
 // Dashboard
-router.get('/dashboard/overview', daCtrl.getDashboard);
+router.get('/dashboard/overview', attCtrl.getDashboard);
 
 // Students
 router.get('/students/stats', studentCtrl.getStats);
@@ -64,16 +62,20 @@ router.post('/leads', leadValidation.create, leadCtrl.create);
 router.put('/leads/:id', leadCtrl.update);
 router.delete('/leads/:id', leadCtrl.delete);
 
-// Attendance
-router.get('/attendance', daCtrl.getAttendance);
-router.get('/attendance/student/:studentId', daCtrl.getStudentAttendance);
-router.post('/attendance', daCtrl.markAttendance);
-router.post('/attendance/bulk', daCtrl.markBulkAttendance);
+// Attendance (Davomat)
+router.get('/attendance', attCtrl.getAttendance);
+router.post('/attendance', attCtrl.markAttendance);
+router.post('/attendance/bulk', attCtrl.markBulkAttendance);
+router.get('/attendance/student/:studentId', attCtrl.getStudentAttendance);
+
+// Achievements (Ball / Yutuqlar)
+router.post('/achievements', attCtrl.addAchievement);
+router.get('/achievements/student/:studentId', attCtrl.getStudentAchievements);
+router.get('/achievements/leaderboard', attCtrl.getLeaderboard);
 
 // SMS
 router.post('/sms/send', authorize('ADMIN', 'MANAGER'), sfCtrl.sendSms);
 router.post('/sms/reminders', authorize('ADMIN'), sfCtrl.sendPaymentReminders);
-router.post('/sms/bulk', authorize('ADMIN'), sfCtrl.sendBulkSms);
 router.get('/sms/logs', authorize('ADMIN'), sfCtrl.getSmsLogs);
 
 // Files

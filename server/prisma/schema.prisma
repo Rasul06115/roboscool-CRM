@@ -1,8 +1,3 @@
-// ============================================
-// 🤖 ROBOSCHOOL CRM — Database Schema v2.1
-// PostgreSQL + Prisma ORM
-// ============================================
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,33 +7,91 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ==================== FOYDALANUVCHILAR ====================
-
 enum UserRole {
   ADMIN
   MANAGER
   TEACHER
 }
 
+enum TimeSlot {
+  MORNING
+  AFTERNOON
+}
+
+enum StudentStatus {
+  ACTIVE
+  INACTIVE
+  GRADUATED
+  EXPELLED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum AchievementType {
+  PROJECT_DONE
+  HOMEWORK_DONE
+  CONTEST_WIN
+  GOOD_BEHAVIOR
+  ATTENDANCE_STREAK
+  OTHER
+}
+
+enum PaymentMethod {
+  CASH
+  CLICK
+  PAYME
+  BANK_TRANSFER
+}
+
+enum LeadSource {
+  INSTAGRAM
+  TELEGRAM
+  REFERRAL
+  WEBSITE
+  FACEBOOK
+  OTHER
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  TRIAL_SCHEDULED
+  TRIAL_DONE
+  CONVERTED
+  LOST
+}
+
+enum ExpenseCategory {
+  RENT
+  SALARY
+  EQUIPMENT
+  MARKETING
+  UTILITIES
+  OTHER
+}
+
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
+  id           String    @id @default(uuid())
+  email        String    @unique
   password     String
-  fullName     String   @map("full_name")
+  fullName     String    @map("full_name")
   phone        String?
-  role         UserRole @default(MANAGER)
+  role         UserRole  @default(MANAGER)
   avatar       String?
-  isActive     Boolean  @default(true) @map("is_active")
-  telegramId   String?  @map("telegram_id")
-  refreshToken String?  @map("refresh_token")
+  isActive     Boolean   @default(true) @map("is_active")
+  telegramId   String?   @map("telegram_id")
+  refreshToken String?   @map("refresh_token")
   lastLoginAt  DateTime? @map("last_login_at")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
 
   @@map("users")
 }
-
-// ==================== KURSLAR ====================
 
 model Course {
   id          String   @id @default(uuid())
@@ -58,8 +111,6 @@ model Course {
   @@map("courses")
 }
 
-// ==================== O'QITUVCHILAR ====================
-
 model Teacher {
   id             String   @id @default(uuid())
   fullName       String   @map("full_name")
@@ -78,14 +129,16 @@ model Teacher {
   @@map("teachers")
 }
 
-// ==================== GURUHLAR ====================
-
 model Group {
   id        String    @id @default(uuid())
   name      String
   courseId   String    @map("course_id")
-  teacherId  String   @map("teacher_id")
+  teacherId String    @map("teacher_id")
   schedule  String?
+  weekDays  String?   @map("week_days")
+  timeSlot  TimeSlot  @default(MORNING) @map("time_slot")
+  startTime String?   @map("start_time")
+  endTime   String?   @map("end_time")
   maxSize   Int       @default(12) @map("max_size")
   startDate DateTime? @map("start_date")
   endDate   DateTime? @map("end_date")
@@ -93,21 +146,12 @@ model Group {
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
 
-  course     Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  teacher    Teacher     @relation(fields: [teacherId], references: [id])
+  course     Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  teacher    Teacher      @relation(fields: [teacherId], references: [id])
   students   Student[]
   attendance Attendance[]
 
   @@map("groups")
-}
-
-// ==================== O'QUVCHILAR ====================
-
-enum StudentStatus {
-  ACTIVE
-  INACTIVE
-  GRADUATED
-  EXPELLED
 }
 
 model Student {
@@ -126,6 +170,7 @@ model Student {
   groupId       String?       @map("group_id")
   balance       Int           @default(0)
   progress      Int           @default(0)
+  totalPoints   Int           @default(0) @map("total_points")
   status        StudentStatus @default(ACTIVE)
   avatar        String?
   telegramId    String?       @map("telegram_id")
@@ -134,21 +179,13 @@ model Student {
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
 
-  group      Group?       @relation(fields: [groupId], references: [id], onDelete: SetNull)
-  payments   Payment[]
-  attendance Attendance[]
-  documents  Document[]
+  group        Group?        @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  payments     Payment[]
+  attendance   Attendance[]
+  documents    Document[]
+  achievements Achievement[]
 
   @@map("students")
-}
-
-// ==================== DAVOMAT ====================
-
-enum AttendanceStatus {
-  PRESENT
-  ABSENT
-  LATE
-  EXCUSED
 }
 
 model Attendance {
@@ -158,6 +195,7 @@ model Attendance {
   date      DateTime         @db.Date
   status    AttendanceStatus @default(PRESENT)
   note      String?
+  smsSent   Boolean          @default(false) @map("sms_sent")
   createdAt DateTime         @default(now()) @map("created_at")
 
   student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
@@ -168,13 +206,20 @@ model Attendance {
   @@map("attendance")
 }
 
-// ==================== TO'LOVLAR ====================
+model Achievement {
+  id          String          @id @default(uuid())
+  studentId   String          @map("student_id")
+  type        AchievementType @default(PROJECT_DONE)
+  title       String
+  description String?
+  points      Int             @default(0)
+  smsSent     Boolean         @default(false) @map("sms_sent")
+  createdAt   DateTime        @default(now()) @map("created_at")
 
-enum PaymentMethod {
-  CASH
-  CLICK
-  PAYME
-  BANK_TRANSFER
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@map("achievements")
 }
 
 model Payment {
@@ -193,26 +238,6 @@ model Payment {
   @@index([studentId])
   @@index([paymentDate])
   @@map("payments")
-}
-
-// ==================== LEADLAR ====================
-
-enum LeadSource {
-  INSTAGRAM
-  TELEGRAM
-  REFERRAL
-  WEBSITE
-  FACEBOOK
-  OTHER
-}
-
-enum LeadStatus {
-  NEW
-  CONTACTED
-  TRIAL_SCHEDULED
-  TRIAL_DONE
-  CONVERTED
-  LOST
 }
 
 model Lead {
@@ -234,17 +259,6 @@ model Lead {
   @@map("leads")
 }
 
-// ==================== XARAJATLAR ====================
-
-enum ExpenseCategory {
-  RENT
-  SALARY
-  EQUIPMENT
-  MARKETING
-  UTILITIES
-  OTHER
-}
-
 model Expense {
   id          String          @id @default(uuid())
   category    ExpenseCategory
@@ -257,8 +271,6 @@ model Expense {
   @@index([expenseDate])
   @@map("expenses")
 }
-
-// ==================== HUJJATLAR ====================
 
 model Document {
   id        String   @id @default(uuid())
@@ -274,8 +286,6 @@ model Document {
   @@map("documents")
 }
 
-// ==================== SMS LOG ====================
-
 model SmsLog {
   id        String   @id @default(uuid())
   phone     String
@@ -287,8 +297,6 @@ model SmsLog {
 
   @@map("sms_logs")
 }
-
-// ==================== NOTIFICATION LOG ====================
 
 model NotificationLog {
   id        String   @id @default(uuid())
