@@ -2,6 +2,7 @@ const router = require('express').Router();
 const { authenticate, authorize } = require('../middleware/auth');
 const { authValidation, studentValidation, paymentValidation, leadValidation } = require('../middleware/validation');
 const { uploadAvatar, uploadDocument } = require('../middleware/upload');
+const prisma = require('../config/prisma');
 
 const authCtrl = require('../controllers/authController');
 const studentCtrl = require('../controllers/studentController');
@@ -48,6 +49,45 @@ router.post('/groups', authorize('ADMIN', 'MANAGER'), cgCtrl.createGroup);
 router.put('/groups/:id', authorize('ADMIN', 'MANAGER'), cgCtrl.updateGroup);
 router.delete('/groups/:id', authorize('ADMIN'), cgCtrl.deleteGroup);
 
+// ==================== O'QITUVCHILAR ====================
+router.get('/teachers', async (req, res, next) => {
+  try {
+    const teachers = await prisma.teacher.findMany({
+      where: { isActive: true },
+      orderBy: { fullName: 'asc' },
+    });
+    res.json({ success: true, data: teachers });
+  } catch (err) { next(err); }
+});
+
+router.post('/teachers', async (req, res, next) => {
+  try {
+    const { fullName, phone, specialization, salary, email } = req.body;
+    if (!fullName) return res.status(400).json({ success: false, error: "O'qituvchi ismini kiriting" });
+    const teacher = await prisma.teacher.create({
+      data: { fullName, phone: phone || null, specialization: specialization || null, salary: Number(salary) || 0, email: email || null },
+    });
+    res.status(201).json({ success: true, data: teacher });
+  } catch (err) { next(err); }
+});
+
+router.put('/teachers/:id', async (req, res, next) => {
+  try {
+    const teacher = await prisma.teacher.update({
+      where: { id: req.params.id },
+      data: req.body,
+    });
+    res.json({ success: true, data: teacher });
+  } catch (err) { next(err); }
+});
+
+router.delete('/teachers/:id', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    await prisma.teacher.update({ where: { id: req.params.id }, data: { isActive: false } });
+    res.json({ success: true, message: "O'qituvchi o'chirildi" });
+  } catch (err) { next(err); }
+});
+
 // Payments
 router.get('/payments/stats', paymentCtrl.getStats);
 router.get('/payments', paymentCtrl.getAll);
@@ -62,13 +102,13 @@ router.post('/leads', leadValidation.create, leadCtrl.create);
 router.put('/leads/:id', leadCtrl.update);
 router.delete('/leads/:id', leadCtrl.delete);
 
-// Attendance (Davomat)
+// Attendance
 router.get('/attendance', attCtrl.getAttendance);
 router.post('/attendance', attCtrl.markAttendance);
 router.post('/attendance/bulk', attCtrl.markBulkAttendance);
 router.get('/attendance/student/:studentId', attCtrl.getStudentAttendance);
 
-// Achievements (Ball / Yutuqlar)
+// Achievements
 router.post('/achievements', attCtrl.addAchievement);
 router.get('/achievements/student/:studentId', attCtrl.getStudentAchievements);
 router.get('/achievements/leaderboard', attCtrl.getLeaderboard);
