@@ -1,6 +1,5 @@
 const prisma = require('../config/prisma');
 const smsService = require('../services/smsService');
-const path = require('path');
 
 // ==================== SMS CONTROLLER ====================
 exports.sendSms = async (req, res, next) => {
@@ -38,21 +37,10 @@ exports.getSmsLogs = async (req, res, next) => {
 exports.uploadFile = async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, error: 'Fayl tanlanmagan' });
-
     const doc = await prisma.document.create({
-      data: {
-        studentId: req.body.studentId || null,
-        fileName: req.file.originalname,
-        filePath: req.file.path,
-        fileType: req.file.mimetype,
-        fileSize: req.file.size,
-      },
+      data: { studentId: req.body.studentId || null, fileName: req.file.originalname, filePath: req.file.path, fileType: req.file.mimetype, fileSize: req.file.size },
     });
-
-    res.status(201).json({
-      success: true,
-      data: { ...doc, url: `/uploads/${req.uploadType}/${req.file.filename}` },
-    });
+    res.status(201).json({ success: true, data: { ...doc, url: `/uploads/${req.uploadType}/${req.file.filename}` } });
   } catch (err) { next(err); }
 };
 
@@ -60,12 +48,7 @@ exports.getFiles = async (req, res, next) => {
   try {
     const where = {};
     if (req.query.studentId) where.studentId = req.query.studentId;
-
-    const files = await prisma.document.findMany({
-      where,
-      include: { student: { select: { id: true, fullName: true } } },
-      orderBy: { createdAt: 'desc' },
-    });
+    const files = await prisma.document.findMany({ where, include: { student: { select: { id: true, fullName: true } } }, orderBy: { createdAt: 'desc' } });
     res.json({ success: true, data: files });
   } catch (err) { next(err); }
 };
@@ -74,11 +57,8 @@ exports.deleteFile = async (req, res, next) => {
   try {
     const doc = await prisma.document.findUnique({ where: { id: req.params.id } });
     if (!doc) return res.status(404).json({ success: false, error: 'Fayl topilmadi' });
-
-    // Faylni diskdan o'chirish
     const fs = require('fs');
     if (fs.existsSync(doc.filePath)) fs.unlinkSync(doc.filePath);
-
     await prisma.document.delete({ where: { id: req.params.id } });
     res.json({ success: true, message: "Fayl o'chirildi" });
   } catch (err) { next(err); }
