@@ -21,7 +21,17 @@ export default function Students() {
   const handleSave = async (form) => {
     try {
       if (editItem) { await studentsAPI.update(editItem.id, form); toast.success("Yangilandi!"); }
-      else { await studentsAPI.create(form); toast.success("Qo'shildi!"); }
+      else {
+        const res = await studentsAPI.create(form);
+        toast.success("Qo'shildi!");
+        // Yangi o'quvchiga xush kelibsiz SMS
+        if (form.parentPhone) {
+          try {
+            await smsAPI.send({ phone: form.parentPhone, message: `Assalomu alaykum! Farzandingiz ${form.fullName} Roboschool o'quv markaziga qabul qilindi. Telegram: https://t.me/roboschool_chinoz ROBOSCHOOL` });
+            toast.success("Xush kelibsiz SMS yuborildi!");
+          } catch (e) {}
+        }
+      }
       setShowModal(false); setEditItem(null); loadData();
     } catch (e) {}
   };
@@ -44,7 +54,7 @@ export default function Students() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50">
-              {["#", "Ism", "Yosh", "Guruh", "Otasi", "Onasi", "Telefon", "Balans", "Progress", "Amallar"].map(h =>
+              {["#", "Ism", "Yosh", "Guruh", "Otasi", "Onasi", "Telefon", "Amallar"].map(h =>
                 <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>)}
             </tr></thead>
             <tbody>{students.map((s, i) => {
@@ -63,8 +73,6 @@ export default function Students() {
                   <td className="px-3 py-3"><div><p className="text-sm text-gray-800">{s.fatherName || '—'}</p>{s.fatherPhone && <p className="text-xs text-gray-400 font-mono">{s.fatherPhone}</p>}</div></td>
                   <td className="px-3 py-3"><div><p className="text-sm text-gray-800">{s.motherName || '—'}</p>{s.motherPhone && <p className="text-xs text-gray-400 font-mono">{s.motherPhone}</p>}</div></td>
                   <td className="px-3 py-3 font-mono text-xs">{s.parentPhone}</td>
-                  <td className={`px-3 py-3 font-bold ${s.balance < 0 ? 'text-red-600' : 'text-green-600'}`}>{s.balance < 0 ? '-' : ''}{formatMoney(Math.abs(s.balance))}</td>
-                  <td className="px-3 py-3"><div className="flex items-center gap-2"><div className="flex-1 bg-gray-200 rounded-full h-1.5 max-w-[50px]"><div className={`h-1.5 rounded-full ${s.progress > 80 ? 'bg-green-500' : s.progress > 50 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${s.progress}%` }} /></div><span className="text-xs font-semibold text-gray-500">{s.progress}%</span></div></td>
                   <td className="px-3 py-3"><div className="flex gap-1">
                     <button onClick={() => setShowProfile(s)} title="Ko'rish" className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100"><Eye size={14} /></button>
                     <button onClick={() => setSmsModal(s)} title="SMS" className="p-1.5 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100"><MessageSquare size={14} /></button>
@@ -120,8 +128,6 @@ function StudentFormModal({ student, groups, onSave, onClose }) {
           <div><h4 className="text-sm font-bold text-gray-700 mb-3">📚 O'qish</h4><div className="grid grid-cols-2 gap-4">
             <div><label className="block text-xs font-semibold text-gray-600 mb-1">Guruh</label><select className={ic} value={f.groupId} onChange={e => setF({...f, groupId: e.target.value})}><option value="">Tanlang</option>{groups.map(g => <option key={g.id} value={g.id}>{g.course?.icon} {g.name}</option>)}</select></div>
             <div><label className="block text-xs font-semibold text-gray-600 mb-1">Status</label><select className={ic} value={f.status} onChange={e => setF({...f, status: e.target.value})}><option value="ACTIVE">Faol</option><option value="INACTIVE">Nofaol</option><option value="GRADUATED">Bitirgan</option></select></div>
-            <div><label className="block text-xs font-semibold text-gray-600 mb-1">Balans</label><input className={ic} type="number" value={f.balance} onChange={e => setF({...f, balance: e.target.value})} /></div>
-            <div><label className="block text-xs font-semibold text-gray-600 mb-1">Progress %</label><input className={ic} type="number" min="0" max="100" value={f.progress} onChange={e => setF({...f, progress: e.target.value})} /></div>
           </div></div>
           <div><label className="block text-xs font-semibold text-gray-600 mb-1">📝 Izoh</label><textarea className={`${ic} min-h-[60px]`} value={f.notes} onChange={e => setF({...f, notes: e.target.value})} /></div>
           <div className="flex justify-end gap-3">
@@ -135,7 +141,7 @@ function StudentFormModal({ student, groups, onSave, onClose }) {
   );
 }
 
-// ==================== SMS MODAL (7 TA SHABLON) ====================
+// ==================== SMS MODAL ====================
 function SmsModal({ student, onClose }) {
   const [phone, setPhone] = useState(student.parentPhone);
   const [message, setMessage] = useState('');
@@ -146,46 +152,17 @@ function SmsModal({ student, onClose }) {
   const parentName = student.fatherName || student.motherName || 'ota-ona';
   const courseName = student.group?.course?.name || 'kurs';
 
-  // 7 ta shablon (barchasi lotin, 160 belgidan kam)
   const templates = [
-    {
-      id: 'payment', label: "💰 To'lov eslatma", color: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-      text: `Hurmatli ${parentName}! Shartnoma bo'yicha ${courseName} kursi uchun 15-sanagacha to'lov qilishingizni so'raymiz. ROBOSCHOOL`
-    },
-    {
-      id: 'absent', label: '❌ Darsga kelmadi', color: 'bg-red-50 text-red-700 border-red-200',
-      text: `Farzandingiz ${student.fullName} bugungi ${today} ${courseName} darsiga kelmadi. Sababini aniqlashingizni so'raymiz. ROBOSCHOOL`
-    },
-    {
-      id: 'welcome', label: '🎉 Yangi qabul', color: 'bg-green-50 text-green-700 border-green-200',
-      text: `Assalomu alaykum! Farzandingiz ${student.fullName} Roboschool o'quv markaziga qabul qilindi. Telegram: https://t.me/roboschool_chinoz ROBOSCHOOL`
-    },
-    {
-      id: 'achievement', label: '🏆 Muvaffaqiyat', color: 'bg-purple-50 text-purple-700 border-purple-200',
-      text: `Farzandingiz ${student.fullName} loyiha ishlarini muvaffaqiyatli topshirdi. Tabriklaymiz! Hurmat bilan ROBOSCHOOL`
-    },
-    {
-      id: 'warning', label: '⚠️ Ogohlantirish', color: 'bg-orange-50 text-orange-700 border-orange-200',
-      text: `Farzandingiz ${student.fullName} bugungi darsda kechikib keldi. Iltimos e'tibor bering. Hurmat bilan ROBOSCHOOL`
-    },
-    {
-      id: 'debt', label: '🔴 Qarz eslatma', color: 'bg-red-50 text-red-700 border-red-200',
-      text: `Hurmatli ${parentName}! Farzandingiz uchun o'tgan oy to'lovi qilinmagan. To'lov qilishingizni so'raymiz. ROBOSCHOOL`
-    },
-    {
-      id: 'thanks', label: '✅ Tashakkur', color: 'bg-teal-50 text-teal-700 border-teal-200',
-      text: `Hurmatli ${parentName}! To'lovni o'z vaqtida qilganingiz uchun tashakkur. Hurmat bilan ROBOSCHOOL`
-    },
+    { id: 'payment', label: "💰 To'lov eslatma", color: 'bg-yellow-50 text-yellow-700 border-yellow-200', text: `Hurmatli ${parentName}! Shartnoma bo'yicha ${courseName} kursi uchun 15-sanagacha to'lov qilishingizni so'raymiz. ROBOSCHOOL` },
+    { id: 'absent', label: '❌ Darsga kelmadi', color: 'bg-red-50 text-red-700 border-red-200', text: `Farzandingiz ${student.fullName} bugungi ${today} ${courseName} darsiga kelmadi. Sababini aniqlashingizni so'raymiz. ROBOSCHOOL` },
+    { id: 'welcome', label: '🎉 Yangi qabul', color: 'bg-green-50 text-green-700 border-green-200', text: `Assalomu alaykum! Farzandingiz ${student.fullName} Roboschool o'quv markaziga qabul qilindi. Telegram: https://t.me/roboschool_chinoz ROBOSCHOOL` },
+    { id: 'achievement', label: '🏆 Muvaffaqiyat', color: 'bg-purple-50 text-purple-700 border-purple-200', text: `Farzandingiz ${student.fullName} loyiha ishlarini muvaffaqiyatli topshirdi. Tabriklaymiz! Hurmat bilan ROBOSCHOOL` },
+    { id: 'warning', label: '⚠️ Ogohlantirish', color: 'bg-orange-50 text-orange-700 border-orange-200', text: `Farzandingiz ${student.fullName} bugungi darsda kechikib keldi. Iltimos e'tibor bering. Hurmat bilan ROBOSCHOOL` },
+    { id: 'debt', label: '🔴 Qarz eslatma', color: 'bg-red-50 text-red-700 border-red-200', text: `Hurmatli ${parentName}! Farzandingiz uchun o'tgan oy to'lovi qilinmagan. To'lov qilishingizni so'raymiz. ROBOSCHOOL` },
+    { id: 'thanks', label: '✅ Tashakkur', color: 'bg-teal-50 text-teal-700 border-teal-200', text: `Hurmatli ${parentName}! To'lovni o'z vaqtida qilganingiz uchun tashakkur. Hurmat bilan ROBOSCHOOL` },
   ];
 
-  // Ogohlantirish sabablari
-  const warningReasons = [
-    'kechikib keldi',
-    'darsga tayyor emas holda keldi',
-    'daftar ruchka qoldirgan',
-    'uy vazifalarni qilmagan',
-    'loyiha ishlarini topshirmagan',
-  ];
+  const warningReasons = ['kechikib keldi', 'darsga tayyor emas holda keldi', 'daftar ruchka qoldirgan', 'uy vazifalarni qilmagan', 'loyiha ishlarini topshirmagan'];
 
   const handleSend = async () => {
     if (!phone || !message) { toast.error("Telefon va xabar yozing!"); return; }
@@ -198,69 +175,63 @@ function SmsModal({ student, onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-lg mx-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center px-6 py-4 border-b">
-          <h3 className="text-lg font-bold">📱 SMS yuborish</h3>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100">✕</button>
+          <h3 className="text-lg font-bold">📱 SMS yuborish</h3><button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100">✕</button>
         </div>
         <div className="p-6 space-y-4">
-          {/* O'quvchi info */}
-          <div className="p-3 bg-gray-50 rounded-xl">
-            <p className="font-semibold">{student.fullName}</p>
-            <p className="text-xs text-gray-400">{student.group?.course?.icon} {student.group?.name || 'Guruhsiz'}</p>
-          </div>
+          <div className="p-3 bg-gray-50 rounded-xl"><p className="font-semibold">{student.fullName}</p><p className="text-xs text-gray-400">{student.group?.course?.icon} {student.group?.name || 'Guruhsiz'}</p></div>
 
-          {/* Kimga yuborish */}
+          {/* Kimga — aniq ko'rsatish */}
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-2">Kimga:</label>
+            <label className="block text-xs font-semibold text-gray-600 mb-2">📞 Kimga yuboriladi:</label>
             <div className="space-y-1.5">
-              {student.fatherPhone && <label className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 cursor-pointer"><input type="radio" name="ph" value={student.fatherPhone} checked={phone === student.fatherPhone} onChange={e => setPhone(e.target.value)} /><span className="text-sm">👨 {student.fatherName} ({student.fatherPhone})</span></label>}
-              {student.motherPhone && <label className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 cursor-pointer"><input type="radio" name="ph" value={student.motherPhone} checked={phone === student.motherPhone} onChange={e => setPhone(e.target.value)} /><span className="text-sm">👩 {student.motherName} ({student.motherPhone})</span></label>}
-              <label className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 cursor-pointer"><input type="radio" name="ph" value={student.parentPhone} checked={phone === student.parentPhone} onChange={e => setPhone(e.target.value)} /><span className="text-sm">📞 Asosiy ({student.parentPhone})</span></label>
+              {student.fatherPhone && (
+                <label className={`flex items-center gap-2 p-2.5 rounded-xl cursor-pointer border-2 ${phone === student.fatherPhone ? 'border-teal-500 bg-teal-50' : 'border-gray-100'}`}>
+                  <input type="radio" name="ph" value={student.fatherPhone} checked={phone === student.fatherPhone} onChange={e => setPhone(e.target.value)} />
+                  <span className="text-sm font-medium">👨 Otasi: {student.fatherName} — <span className="font-mono">{student.fatherPhone}</span></span>
+                </label>
+              )}
+              {student.motherPhone && (
+                <label className={`flex items-center gap-2 p-2.5 rounded-xl cursor-pointer border-2 ${phone === student.motherPhone ? 'border-teal-500 bg-teal-50' : 'border-gray-100'}`}>
+                  <input type="radio" name="ph" value={student.motherPhone} checked={phone === student.motherPhone} onChange={e => setPhone(e.target.value)} />
+                  <span className="text-sm font-medium">👩 Onasi: {student.motherName} — <span className="font-mono">{student.motherPhone}</span></span>
+                </label>
+              )}
+              <label className={`flex items-center gap-2 p-2.5 rounded-xl cursor-pointer border-2 ${phone === student.parentPhone ? 'border-teal-500 bg-teal-50' : 'border-gray-100'}`}>
+                <input type="radio" name="ph" value={student.parentPhone} checked={phone === student.parentPhone} onChange={e => setPhone(e.target.value)} />
+                <span className="text-sm font-medium">📞 Asosiy: <span className="font-mono">{student.parentPhone}</span></span>
+              </label>
             </div>
+            <p className="text-xs text-teal-600 font-semibold mt-2">📱 SMS shu raqamga yuboriladi: {phone}</p>
           </div>
 
-          {/* 7 ta shablon */}
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-2">Shablon tanlang:</label>
+            <label className="block text-xs font-semibold text-gray-600 mb-2">Shablon:</label>
             <div className="grid grid-cols-2 gap-2">
               {templates.map(t => (
                 <button key={t.id} onClick={() => { setMessage(t.text); setActiveTemplate(t.id); }}
-                  className={`text-xs p-2 rounded-xl font-semibold text-left border transition-all ${activeTemplate === t.id ? t.color + ' border-current scale-[1.02]' : 'bg-gray-50 text-gray-600 border-transparent hover:bg-gray-100'}`}>
-                  {t.label}
-                </button>
+                  className={`text-xs p-2 rounded-xl font-semibold text-left border ${activeTemplate === t.id ? t.color + ' border-current' : 'bg-gray-50 text-gray-600 border-transparent hover:bg-gray-100'}`}>{t.label}</button>
               ))}
             </div>
           </div>
 
-          {/* Ogohlantirish sabablari (agar warning tanlangan bo'lsa) */}
           {activeTemplate === 'warning' && (
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-2">Sababni tanlang:</label>
-              <div className="flex flex-wrap gap-1.5">
-                {warningReasons.map(reason => (
-                  <button key={reason} onClick={() => setMessage(`Farzandingiz ${student.fullName} bugungi darsda ${reason}. Iltimos e'tibor bering. Hurmat bilan ROBOSCHOOL`)}
-                    className="text-xs px-2.5 py-1.5 rounded-lg bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200">
-                    {reason}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <div><label className="block text-xs font-semibold text-gray-600 mb-2">Sabab:</label>
+              <div className="flex flex-wrap gap-1.5">{warningReasons.map(r => (
+                <button key={r} onClick={() => setMessage(`Farzandingiz ${student.fullName} bugungi darsda ${r}. Iltimos e'tibor bering. Hurmat bilan ROBOSCHOOL`)}
+                  className="text-xs px-2.5 py-1.5 rounded-lg bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200">{r}</button>
+              ))}</div></div>
           )}
 
-          {/* Xabar matni */}
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Xabar matni</label>
-            <textarea className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:border-teal-500 focus:outline-none min-h-[100px]"
-              value={message} onChange={e => setMessage(e.target.value)} placeholder="Xabar matnini yozing yoki shablon tanlang..." />
-            <div className="flex justify-between mt-1">
-              <p className={`text-xs ${message.length > 160 ? 'text-red-500 font-bold' : 'text-gray-400'}`}>{message.length}/160 belgi</p>
-              {message.length > 160 && <p className="text-xs text-red-500">⚠️ 2 ta SMS sifatida yuboriladi</p>}
-            </div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Xabar</label>
+            <textarea className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:border-teal-500 focus:outline-none min-h-[100px]" value={message} onChange={e => setMessage(e.target.value)} />
+            <p className={`text-xs mt-1 ${message.length > 160 ? 'text-red-500 font-bold' : 'text-gray-400'}`}>{message.length}/160</p>
           </div>
 
           <button onClick={handleSend} disabled={sending || !message}
             className="w-full py-3 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700 disabled:opacity-50 flex items-center justify-center gap-2">
             {sending ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" /> : <MessageSquare size={16} />}
-            {sending ? 'Yuborilmoqda...' : 'SMS yuborish'}
+            {sending ? 'Yuborilmoqda...' : `SMS yuborish (${phone})`}
           </button>
         </div>
       </div>
@@ -282,10 +253,6 @@ function ProfileModal({ student, onClose }) {
         <div className="p-6 space-y-4">
           <div><h2 className="text-xl font-extrabold">{s.fullName}</h2><p className="text-sm text-gray-500">{c?.icon} {s.group?.name || 'Guruhsiz'} • {s.age} yosh</p></div>
           {s.metrikaNumber && <div className="p-3 bg-blue-50 rounded-xl"><p className="text-xs text-blue-500 font-semibold">📋 Metrika</p><p className="text-sm font-bold text-blue-800">{s.metrikaNumber}</p></div>}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-3 rounded-xl bg-gray-50"><p className="text-xs text-gray-400">Balans</p><p className={`text-lg font-extrabold ${s.balance < 0 ? 'text-red-600' : 'text-green-600'}`}>{formatMoney(s.balance)} so'm</p></div>
-            <div className="p-3 rounded-xl bg-gray-50"><p className="text-xs text-gray-400">Progress</p><p className="text-lg font-extrabold">{s.progress}%</p></div>
-          </div>
           <div className="space-y-2"><h4 className="text-sm font-bold">👨‍👩‍👦 Ota-ona</h4>
             {s.fatherName && <div className="flex justify-between items-center p-3 bg-gray-50 rounded-xl"><div><p className="text-sm font-semibold">👨 {s.fatherName}</p><p className="text-xs text-gray-400">{s.fatherPhone}</p></div>{s.fatherPhone && <a href={`tel:${s.fatherPhone}`} className="p-2 rounded-lg bg-green-50 text-green-600"><Phone size={16} /></a>}</div>}
             {s.motherName && <div className="flex justify-between items-center p-3 bg-gray-50 rounded-xl"><div><p className="text-sm font-semibold">👩 {s.motherName}</p><p className="text-xs text-gray-400">{s.motherPhone}</p></div>{s.motherPhone && <a href={`tel:${s.motherPhone}`} className="p-2 rounded-lg bg-green-50 text-green-600"><Phone size={16} /></a>}</div>}
