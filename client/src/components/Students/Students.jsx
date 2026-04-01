@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Plus, Pencil, Trash2, MessageSquare, Phone, Eye, X } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, MessageSquare, Phone, Eye, X, Filter } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { studentsAPI, groupsAPI, smsAPI } from '../../utils/api';
 import { formatMoney } from '../../utils/helpers';
@@ -8,6 +8,7 @@ export default function Students() {
   const [students, setStudents] = useState([]);
   const [groups, setGroups] = useState([]);
   const [search, setSearch] = useState('');
+  const [filterGroup, setFilterGroup] = useState('');
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showSmsModal, setSmsModal] = useState(null);
@@ -16,20 +17,25 @@ export default function Students() {
 
   useEffect(() => { loadData(); }, []);
   const loadData = async () => {
-    try { const [s, g] = await Promise.all([studentsAPI.getAll({ search: search || undefined }), groupsAPI.getAll()]); setStudents(s.data); setGroups(g.data); } catch (e) {} finally { setLoading(false); }
+    try { const [s, g] = await Promise.all([studentsAPI.getAll(), groupsAPI.getAll()]); setStudents(s.data); setGroups(g.data); } catch (e) {} finally { setLoading(false); }
   };
+
+  // Filtrlanagan o'quvchilar
+  const filtered = students.filter(s => {
+    const matchSearch = !search || s.fullName.toLowerCase().includes(search.toLowerCase()) ||
+      s.parentPhone?.includes(search) || s.fatherName?.toLowerCase().includes(search.toLowerCase()) ||
+      s.motherName?.toLowerCase().includes(search.toLowerCase()) || s.fatherPhone?.includes(search) || s.motherPhone?.includes(search);
+    const matchGroup = !filterGroup || s.groupId === filterGroup;
+    return matchSearch && matchGroup;
+  });
+
   const handleSave = async (form) => {
     try {
       if (editItem) { await studentsAPI.update(editItem.id, form); toast.success("Yangilandi!"); }
       else {
-        const res = await studentsAPI.create(form);
-        toast.success("Qo'shildi!");
-        // Yangi o'quvchiga xush kelibsiz SMS
+        await studentsAPI.create(form); toast.success("Qo'shildi!");
         if (form.parentPhone) {
-          try {
-            await smsAPI.send({ phone: form.parentPhone, message: `Assalomu alaykum! Farzandingiz ${form.fullName} Roboschool o'quv markaziga qabul qilindi. Telegram: https://t.me/roboschool_chinoz ROBOSCHOOL` });
-            toast.success("Xush kelibsiz SMS yuborildi!");
-          } catch (e) {}
+          try { await smsAPI.send({ phone: form.parentPhone, message: `Assalomu alaykum! Farzandingiz ${form.fullName} Roboschool o'quv markaziga qabul qilindi. Telegram: https://t.me/roboschool_chinoz ROBOSCHOOL` }); toast.success("Xush kelibsiz SMS yuborildi!"); } catch (e) {}
         }
       }
       setShowModal(false); setEditItem(null); loadData();
@@ -40,12 +46,24 @@ export default function Students() {
   return (
     <div className="space-y-4 animate-fadeIn">
       <div className="flex flex-col sm:flex-row justify-between gap-3">
-        <div className="relative flex-1 max-w-md">
-          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:border-teal-500 focus:outline-none" placeholder="Qidirish..." value={search} onChange={e => { setSearch(e.target.value); clearTimeout(window._st); window._st = setTimeout(loadData, 300); }} />
+        <div className="flex gap-3 flex-1">
+          <div className="relative flex-1 max-w-md">
+            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:border-teal-500 focus:outline-none"
+              placeholder="Ism, telefon, ota-ona bo'yicha qidirish..." value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
+          {/* GURUH FILTRI */}
+          <div className="relative">
+            <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <select value={filterGroup} onChange={e => setFilterGroup(e.target.value)}
+              className="pl-9 pr-4 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:border-teal-500 focus:outline-none appearance-none bg-white min-w-[180px]">
+              <option value="">Barcha guruhlar</option>
+              {groups.map(g => <option key={g.id} value={g.id}>{g.course?.icon} {g.name}</option>)}
+            </select>
+          </div>
         </div>
         <div className="flex gap-2">
-          <span className="flex items-center text-sm text-gray-500 bg-gray-100 px-3 rounded-xl">{students.length} ta</span>
+          <span className="flex items-center text-sm text-gray-500 bg-gray-100 px-3 rounded-xl">{filtered.length} ta</span>
           <button onClick={() => { setEditItem(null); setShowModal(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700"><Plus size={18} /> Yangi o'quvchi</button>
         </div>
       </div>
@@ -57,7 +75,7 @@ export default function Students() {
               {["#", "Ism", "Yosh", "Guruh", "Otasi", "Onasi", "Telefon", "Amallar"].map(h =>
                 <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>)}
             </tr></thead>
-            <tbody>{students.map((s, i) => {
+            <tbody>{filtered.map((s, i) => {
               const c = s.group?.course;
               return (
                 <tr key={s.id} className="border-t border-gray-50 hover:bg-gray-50/50">
@@ -83,7 +101,7 @@ export default function Students() {
             })}</tbody>
           </table>
         </div>
-        {students.length === 0 && !loading && <p className="text-center text-gray-400 py-10">Topilmadi</p>}
+        {filtered.length === 0 && !loading && <p className="text-center text-gray-400 py-10">Topilmadi</p>}
       </div>
 
       {showModal && <StudentFormModal student={editItem} groups={groups} onSave={handleSave} onClose={() => { setShowModal(false); setEditItem(null); }} />}
@@ -93,7 +111,6 @@ export default function Students() {
   );
 }
 
-// ==================== STUDENT FORM ====================
 function StudentFormModal({ student, groups, onSave, onClose }) {
   const [f, setF] = useState({
     fullName: student?.fullName || '', age: student?.age || '', metrikaNumber: student?.metrikaNumber || '',
@@ -104,7 +121,6 @@ function StudentFormModal({ student, groups, onSave, onClose }) {
     status: student?.status || 'ACTIVE', notes: student?.notes || '',
   });
   const ic = "w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:border-teal-500 focus:outline-none";
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-2xl mx-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -115,7 +131,7 @@ function StudentFormModal({ student, groups, onSave, onClose }) {
           <div><h4 className="text-sm font-bold text-gray-700 mb-3">👤 Asosiy</h4><div className="grid grid-cols-2 gap-4">
             <div><label className="block text-xs font-semibold text-gray-600 mb-1">Ism *</label><input className={ic} value={f.fullName} onChange={e => setF({...f, fullName: e.target.value})} /></div>
             <div><label className="block text-xs font-semibold text-gray-600 mb-1">Yoshi</label><input className={ic} type="number" value={f.age} onChange={e => setF({...f, age: e.target.value})} /></div>
-            <div><label className="block text-xs font-semibold text-gray-600 mb-1">📋 Metrika</label><input className={ic} value={f.metrikaNumber} onChange={e => setF({...f, metrikaNumber: e.target.value})} placeholder="I-TM 1234567" /></div>
+            <div><label className="block text-xs font-semibold text-gray-600 mb-1">Metrika</label><input className={ic} value={f.metrikaNumber} onChange={e => setF({...f, metrikaNumber: e.target.value})} placeholder="I-TM 1234567" /></div>
             <div><label className="block text-xs font-semibold text-gray-600 mb-1">Manzil</label><input className={ic} value={f.address} onChange={e => setF({...f, address: e.target.value})} /></div>
           </div></div>
           <div><h4 className="text-sm font-bold text-gray-700 mb-3">👨‍👩‍👦 Ota-ona</h4><div className="grid grid-cols-2 gap-4">
@@ -141,17 +157,14 @@ function StudentFormModal({ student, groups, onSave, onClose }) {
   );
 }
 
-// ==================== SMS MODAL ====================
 function SmsModal({ student, onClose }) {
   const [phone, setPhone] = useState(student.parentPhone);
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [activeTemplate, setActiveTemplate] = useState('');
-
   const today = new Date().toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const parentName = student.fatherName || student.motherName || 'ota-ona';
   const courseName = student.group?.course?.name || 'kurs';
-
   const templates = [
     { id: 'payment', label: "💰 To'lov eslatma", color: 'bg-yellow-50 text-yellow-700 border-yellow-200', text: `Hurmatli ${parentName}! Shartnoma bo'yicha ${courseName} kursi uchun 15-sanagacha to'lov qilishingizni so'raymiz. ROBOSCHOOL` },
     { id: 'absent', label: '❌ Darsga kelmadi', color: 'bg-red-50 text-red-700 border-red-200', text: `Farzandingiz ${student.fullName} bugungi ${today} ${courseName} darsiga kelmadi. Sababini aniqlashingizni so'raymiz. ROBOSCHOOL` },
@@ -161,85 +174,43 @@ function SmsModal({ student, onClose }) {
     { id: 'debt', label: '🔴 Qarz eslatma', color: 'bg-red-50 text-red-700 border-red-200', text: `Hurmatli ${parentName}! Farzandingiz uchun o'tgan oy to'lovi qilinmagan. To'lov qilishingizni so'raymiz. ROBOSCHOOL` },
     { id: 'thanks', label: '✅ Tashakkur', color: 'bg-teal-50 text-teal-700 border-teal-200', text: `Hurmatli ${parentName}! To'lovni o'z vaqtida qilganingiz uchun tashakkur. Hurmat bilan ROBOSCHOOL` },
   ];
-
   const warningReasons = ['kechikib keldi', 'darsga tayyor emas holda keldi', 'daftar ruchka qoldirgan', 'uy vazifalarni qilmagan', 'loyiha ishlarini topshirmagan'];
-
   const handleSend = async () => {
-    if (!phone || !message) { toast.error("Telefon va xabar yozing!"); return; }
+    if (!phone || !message) { toast.error("Xabar yozing!"); return; }
     setSending(true);
-    try { await smsAPI.send({ phone, message }); toast.success(`SMS yuborildi: ${phone}`); onClose(); }
-    catch (e) { toast.error("SMS xatolik"); } finally { setSending(false); }
+    try { await smsAPI.send({ phone, message }); toast.success(`SMS yuborildi: ${phone}`); onClose(); } catch (e) { toast.error("SMS xatolik"); } finally { setSending(false); }
   };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-lg mx-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center px-6 py-4 border-b">
-          <h3 className="text-lg font-bold">📱 SMS yuborish</h3><button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100">✕</button>
-        </div>
+        <div className="flex justify-between items-center px-6 py-4 border-b"><h3 className="text-lg font-bold">📱 SMS</h3><button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100">✕</button></div>
         <div className="p-6 space-y-4">
           <div className="p-3 bg-gray-50 rounded-xl"><p className="font-semibold">{student.fullName}</p><p className="text-xs text-gray-400">{student.group?.course?.icon} {student.group?.name || 'Guruhsiz'}</p></div>
-
-          {/* Kimga — aniq ko'rsatish */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-2">📞 Kimga yuboriladi:</label>
+          <div><label className="block text-xs font-semibold text-gray-600 mb-2">📞 Kimga:</label>
             <div className="space-y-1.5">
-              {student.fatherPhone && (
-                <label className={`flex items-center gap-2 p-2.5 rounded-xl cursor-pointer border-2 ${phone === student.fatherPhone ? 'border-teal-500 bg-teal-50' : 'border-gray-100'}`}>
-                  <input type="radio" name="ph" value={student.fatherPhone} checked={phone === student.fatherPhone} onChange={e => setPhone(e.target.value)} />
-                  <span className="text-sm font-medium">👨 Otasi: {student.fatherName} — <span className="font-mono">{student.fatherPhone}</span></span>
-                </label>
-              )}
-              {student.motherPhone && (
-                <label className={`flex items-center gap-2 p-2.5 rounded-xl cursor-pointer border-2 ${phone === student.motherPhone ? 'border-teal-500 bg-teal-50' : 'border-gray-100'}`}>
-                  <input type="radio" name="ph" value={student.motherPhone} checked={phone === student.motherPhone} onChange={e => setPhone(e.target.value)} />
-                  <span className="text-sm font-medium">👩 Onasi: {student.motherName} — <span className="font-mono">{student.motherPhone}</span></span>
-                </label>
-              )}
-              <label className={`flex items-center gap-2 p-2.5 rounded-xl cursor-pointer border-2 ${phone === student.parentPhone ? 'border-teal-500 bg-teal-50' : 'border-gray-100'}`}>
-                <input type="radio" name="ph" value={student.parentPhone} checked={phone === student.parentPhone} onChange={e => setPhone(e.target.value)} />
-                <span className="text-sm font-medium">📞 Asosiy: <span className="font-mono">{student.parentPhone}</span></span>
-              </label>
-            </div>
-            <p className="text-xs text-teal-600 font-semibold mt-2">📱 SMS shu raqamga yuboriladi: {phone}</p>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-2">Shablon:</label>
-            <div className="grid grid-cols-2 gap-2">
-              {templates.map(t => (
-                <button key={t.id} onClick={() => { setMessage(t.text); setActiveTemplate(t.id); }}
-                  className={`text-xs p-2 rounded-xl font-semibold text-left border ${activeTemplate === t.id ? t.color + ' border-current' : 'bg-gray-50 text-gray-600 border-transparent hover:bg-gray-100'}`}>{t.label}</button>
-              ))}
-            </div>
-          </div>
-
-          {activeTemplate === 'warning' && (
-            <div><label className="block text-xs font-semibold text-gray-600 mb-2">Sabab:</label>
-              <div className="flex flex-wrap gap-1.5">{warningReasons.map(r => (
-                <button key={r} onClick={() => setMessage(`Farzandingiz ${student.fullName} bugungi darsda ${r}. Iltimos e'tibor bering. Hurmat bilan ROBOSCHOOL`)}
-                  className="text-xs px-2.5 py-1.5 rounded-lg bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200">{r}</button>
-              ))}</div></div>
-          )}
-
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Xabar</label>
-            <textarea className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:border-teal-500 focus:outline-none min-h-[100px]" value={message} onChange={e => setMessage(e.target.value)} />
-            <p className={`text-xs mt-1 ${message.length > 160 ? 'text-red-500 font-bold' : 'text-gray-400'}`}>{message.length}/160</p>
-          </div>
-
-          <button onClick={handleSend} disabled={sending || !message}
-            className="w-full py-3 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700 disabled:opacity-50 flex items-center justify-center gap-2">
-            {sending ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" /> : <MessageSquare size={16} />}
-            {sending ? 'Yuborilmoqda...' : `SMS yuborish (${phone})`}
-          </button>
+              {student.fatherPhone && <label className={`flex items-center gap-2 p-2.5 rounded-xl cursor-pointer border-2 ${phone === student.fatherPhone ? 'border-teal-500 bg-teal-50' : 'border-gray-100'}`}><input type="radio" name="ph" value={student.fatherPhone} checked={phone === student.fatherPhone} onChange={e => setPhone(e.target.value)} /><span className="text-sm">👨 {student.fatherName} — {student.fatherPhone}</span></label>}
+              {student.motherPhone && <label className={`flex items-center gap-2 p-2.5 rounded-xl cursor-pointer border-2 ${phone === student.motherPhone ? 'border-teal-500 bg-teal-50' : 'border-gray-100'}`}><input type="radio" name="ph" value={student.motherPhone} checked={phone === student.motherPhone} onChange={e => setPhone(e.target.value)} /><span className="text-sm">👩 {student.motherName} — {student.motherPhone}</span></label>}
+              <label className={`flex items-center gap-2 p-2.5 rounded-xl cursor-pointer border-2 ${phone === student.parentPhone ? 'border-teal-500 bg-teal-50' : 'border-gray-100'}`}><input type="radio" name="ph" value={student.parentPhone} checked={phone === student.parentPhone} onChange={e => setPhone(e.target.value)} /><span className="text-sm">📞 Asosiy: {student.parentPhone}</span></label>
+            </div></div>
+          <div><label className="block text-xs font-semibold text-gray-600 mb-2">Shablon:</label>
+            <div className="grid grid-cols-2 gap-2">{templates.map(t => (
+              <button key={t.id} onClick={() => { setMessage(t.text); setActiveTemplate(t.id); }}
+                className={`text-xs p-2 rounded-xl font-semibold text-left border ${activeTemplate === t.id ? t.color + ' border-current' : 'bg-gray-50 text-gray-600 border-transparent hover:bg-gray-100'}`}>{t.label}</button>
+            ))}</div></div>
+          {activeTemplate === 'warning' && <div><div className="flex flex-wrap gap-1.5">{warningReasons.map(r => (
+            <button key={r} onClick={() => setMessage(`Farzandingiz ${student.fullName} bugungi darsda ${r}. Iltimos e'tibor bering. Hurmat bilan ROBOSCHOOL`)}
+              className="text-xs px-2.5 py-1.5 rounded-lg bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200">{r}</button>
+          ))}</div></div>}
+          <div><textarea className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:border-teal-500 focus:outline-none min-h-[80px]" value={message} onChange={e => setMessage(e.target.value)} />
+            <p className={`text-xs mt-1 ${message.length > 160 ? 'text-red-500 font-bold' : 'text-gray-400'}`}>{message.length}/160</p></div>
+          <button onClick={handleSend} disabled={sending || !message} className="w-full py-3 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700 disabled:opacity-50">
+            {sending ? 'Yuborilmoqda...' : `SMS yuborish (${phone})`}</button>
         </div>
       </div>
     </div>
   );
 }
 
-// ==================== PROFILE ====================
 function ProfileModal({ student, onClose }) {
   const s = student; const c = s.group?.course;
   return (
@@ -257,7 +228,6 @@ function ProfileModal({ student, onClose }) {
             {s.fatherName && <div className="flex justify-between items-center p-3 bg-gray-50 rounded-xl"><div><p className="text-sm font-semibold">👨 {s.fatherName}</p><p className="text-xs text-gray-400">{s.fatherPhone}</p></div>{s.fatherPhone && <a href={`tel:${s.fatherPhone}`} className="p-2 rounded-lg bg-green-50 text-green-600"><Phone size={16} /></a>}</div>}
             {s.motherName && <div className="flex justify-between items-center p-3 bg-gray-50 rounded-xl"><div><p className="text-sm font-semibold">👩 {s.motherName}</p><p className="text-xs text-gray-400">{s.motherPhone}</p></div>{s.motherPhone && <a href={`tel:${s.motherPhone}`} className="p-2 rounded-lg bg-green-50 text-green-600"><Phone size={16} /></a>}</div>}
           </div>
-          {s.address && <div><p className="text-xs text-gray-400">📍 Manzil</p><p className="text-sm">{s.address}</p></div>}
         </div>
       </div>
     </div>
