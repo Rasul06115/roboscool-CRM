@@ -1,10 +1,15 @@
 import { useState, useEffect } from 'react';
-import { dashboardAPI } from '../../utils/api';
+import { FileDown, X } from 'lucide-react';
+import toast from 'react-hot-toast';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { dashboardAPI, paymentsAPI, groupsAPI, studentsAPI } from '../../utils/api';
 import { formatMoney } from '../../utils/helpers';
 
 export default function Reports() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showPdfModal, setShowPdfModal] = useState(false);
 
   useEffect(() => { dashboardAPI.getOverview().then(r => setData(r.data)).finally(() => setLoading(false)); }, []);
 
@@ -17,6 +22,15 @@ export default function Reports() {
 
   return (
     <div className="space-y-6 animate-fadeIn">
+      {/* YANGI: PDF eksport tugmasi */}
+      <div className="flex justify-end">
+        <button onClick={() => setShowPdfModal(true)}
+          className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700 shadow-sm">
+          <FileDown size={18} /> Oylik PDF hisobot
+        </button>
+      </div>
+
+      {/* --- QOLGAN BARCHA KOD O'ZGARMAS --- */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
           <h3 className="font-bold mb-6">📈 Oylik daromad</h3>
@@ -75,6 +89,119 @@ export default function Reports() {
               <span className="text-xl">{item.i}</span><span className="flex-1 text-sm text-gray-600">{item.l}</span><span className="font-bold">{item.v}</span>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* YANGI: PDF modal */}
+      {showPdfModal && <PdfModal onClose={() => setShowPdfModal(false)} />}
+    </div>
+  );
+}
+
+// ==================== PDF MODAL ====================
+function PdfModal({ onClose }) {
+  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [generating, setGenerating] = useState(false);
+
+  const generatePDF = async () => {
+    setGenerating(true);
+    try {
+      // Barcha kerakli ma'lumotlarni yuklaymiz
+      const [paymentsRes, studentsRes, groupsRes] = await Promise.all([
+        paymentsAPI.getAll(),
+        studentsAPI.getAll(),
+        groupsAPI.getAll(),
+      ]);
+      const payments = paymentsRes.data || [];
+      const students = studentsRes.data || [];
+      const groups = groupsRes.data || [];
+
+      // Tanlangan oy uchun to'lovlar
+      const monthPayments = payments.filter(p => p.monthFor === month);
+
+      // PDF yaratish
+      const doc = new jsPDF();
+      doc.setFontSize(18);
+      doc.text(`Oylik hisobot: ${month}`, 14, 18);
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Yaratilgan: ${new Date().toLocaleDateString('uz-UZ')}`, 14, 25);
+
+      // Umumiy statistika
+      const totalRevenue = monthPayments.reduce((s, p) => s + p.amount, 0);
+      const paidStudentIds = new Set(monthPayments.map(p => p.studentId));
+      const activeStudents = students.filter(s => s.status === 'ACTIVE');
+      const debtors = activeStudents.filter(s => !paidStudentIds.has(s.id));
+
+      doc.setFontSize(11);
+      doc.setTextColor(0);
+      doc.text(`Jami tushum: ${totalRevenue.toLocaleString()} so'm`, 14, 35);
+      doc.text(`To'laganlar: ${paidStudentIds.size} ta  |  Qarzdorlar: ${debtors.length} ta`, 14, 42);
+
+      // Har guruh uchun jadval
+      let y = 50;
+      groups.forEach(g => {
+        const gStudents = activeStudents.filter(s => s.groupId === g.id);
+        if (gStudents.length === 0) return;
+
+        const rows = gStudents.map(s => {
+          const paid = monthPayments.find(p => p.studentId === s.id);
+          return [
+            s.fullName,
+            paid ? 'To\'landi' : 'Qarzdor',
+            paid ? paid.amount.toLocaleString() + ' so\'m' : '—',
+            paid ? new Date(paid.paymentDate).toLocaleDateString('uz-UZ') : '—',
+          ];
+        });
+
+        autoTable(doc, {
+          startY: y,
+          head: [[`${g.name} (${gStudents.length} o'quvchi)`, 'Holat', 'Summa', 'Sana']],
+          body: rows,
+          theme: 'striped',
+          headStyles: { fillColor: [13, 148, 136] },
+          styles: { fontSize: 9 },
+          margin: { left: 14, right: 14 },
+        });
+        y = doc.lastAutoTable.finalY + 8;
+        if (y > 260) { doc.addPage(); y = 20; }
+      });
+
+      doc.save(`hisobot-${month}.pdf`);
+      toast.success('PDF yuklandi!');
+      onClose();
+    } catch (e) {
+      console.error(e);
+      toast.error('Xatolik yuz berdi');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-md mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center px-6 py-4 border-b">
+          <h3 className="text-lg font-bold">📄 Oylik PDF hisobot</h3>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100"><X size={18} /></button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Oyni tanlang</label>
+            <input type="month" value={month} onChange={e => setMonth(e.target.value)}
+              className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:border-teal-500 focus:outline-none" />
+          </div>
+          <p className="text-xs text-gray-500">
+            Hisobotda: har guruh bo'yicha o'quvchilar, to'lov holati, summa va sana ko'rsatiladi.
+          </p>
+          <div className="flex justify-end gap-3">
+            <button onClick={onClose} disabled={generating}
+              className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold">Bekor</button>
+            <button onClick={generatePDF} disabled={generating}
+              className="px-5 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700 disabled:opacity-50">
+              {generating ? 'Yaratilmoqda...' : 'PDF yuklash'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

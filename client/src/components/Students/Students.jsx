@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Search, Plus, Pencil, Trash2, MessageSquare, Phone, Eye, X, Filter } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, MessageSquare, Phone, Eye, X, Filter, Calendar } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { studentsAPI, groupsAPI, smsAPI } from '../../utils/api';
+import { studentsAPI, groupsAPI, smsAPI, attendanceAPI } from '../../utils/api';
 import { formatMoney } from '../../utils/helpers';
 
 export default function Students() {
@@ -212,22 +212,186 @@ function SmsModal({ student, onClose }) {
 }
 
 function ProfileModal({ student, onClose }) {
-  const s = student; const c = s.group?.course;
+  const s = student;
+  const c = s.group?.course;
+  const [tab, setTab] = useState('info');
+  const [attendance, setAttendance] = useState([]);
+  const [loadingAtt, setLoadingAtt] = useState(false);
+  const [filterMonth, setFilterMonth] = useState(new Date().toISOString().slice(0, 7));
+
+  useEffect(() => {
+    if (tab === 'attendance') {
+      setLoadingAtt(true);
+      attendanceAPI.getByStudent(s.id)
+        .then(r => {
+          let arr = [];
+          if (Array.isArray(r)) arr = r;
+          else if (Array.isArray(r?.data)) arr = r.data;
+          else if (Array.isArray(r?.attendance)) arr = r.attendance;
+          setAttendance(arr);
+        })
+        .catch((err) => {
+          console.error('Attendance yuklashda xato:', err);
+          setAttendance([]);
+        })
+        .finally(() => setLoadingAtt(false));
+    }
+  }, [tab, s.id]);
+
+  // Xavfsiz array
+  const safeAttendance = Array.isArray(attendance) ? attendance : [];
+
+  // Tanlangan oy bo'yicha filter
+  const filteredAtt = safeAttendance.filter(a => {
+    if (!a?.date) return false;
+    const d = new Date(a.date).toISOString().slice(0, 7);
+    return d === filterMonth;
+  });
+
+  // Foiz hisobi
+  const total = filteredAtt.length;
+  const present = filteredAtt.filter(a => a.status === 'PRESENT').length;
+  const absent = filteredAtt.filter(a => a.status === 'ABSENT').length;
+  const excused = filteredAtt.filter(a => a.status === 'EXCUSED').length;
+  const late = filteredAtt.filter(a => a.status === 'LATE').length;
+  const percent = total > 0 ? Math.round((present / total) * 100) : 0;
+
+  // Oylar ro'yxati
+  const availableMonths = [...new Set(safeAttendance.map(a => {
+    if (!a?.date) return null;
+    return new Date(a.date).toISOString().slice(0, 7);
+  }).filter(Boolean))].sort().reverse();
+  if (!availableMonths.includes(filterMonth)) availableMonths.unshift(filterMonth);
+
+  const statusLabel = {
+    PRESENT: { label: '✅ Keldi', color: 'bg-green-50 text-green-700' },
+    ABSENT: { label: '❌ Kelmadi', color: 'bg-red-50 text-red-700' },
+    EXCUSED: { label: '📝 Sababli', color: 'bg-yellow-50 text-yellow-700' },
+    LATE: { label: '⏰ Kech', color: 'bg-orange-50 text-orange-700' },
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-lg mx-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="relative">
           <div className="h-20 rounded-t-2xl" style={{ background: `linear-gradient(135deg, ${c?.color || '#6B7280'}, ${c?.color || '#6B7280'}88)` }} />
           <button onClick={onClose} className="absolute top-3 right-3 p-2 rounded-lg bg-white/20 text-white hover:bg-white/30"><X size={18} /></button>
-          <div className="px-6 -mt-10"><div className="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-2xl font-bold border-4 border-white shadow-lg" style={{ background: c?.color || '#6B7280' }}>{s.fullName.charAt(0)}</div></div>
-        </div>
-        <div className="p-6 space-y-4">
-          <div><h2 className="text-xl font-extrabold">{s.fullName}</h2><p className="text-sm text-gray-500">{c?.icon} {s.group?.name || 'Guruhsiz'} • {s.age} yosh</p></div>
-          {s.metrikaNumber && <div className="p-3 bg-blue-50 rounded-xl"><p className="text-xs text-blue-500 font-semibold">📋 Metrika</p><p className="text-sm font-bold text-blue-800">{s.metrikaNumber}</p></div>}
-          <div className="space-y-2"><h4 className="text-sm font-bold">👨‍👩‍👦 Ota-ona</h4>
-            {s.fatherName && <div className="flex justify-between items-center p-3 bg-gray-50 rounded-xl"><div><p className="text-sm font-semibold">👨 {s.fatherName}</p><p className="text-xs text-gray-400">{s.fatherPhone}</p></div>{s.fatherPhone && <a href={`tel:${s.fatherPhone}`} className="p-2 rounded-lg bg-green-50 text-green-600"><Phone size={16} /></a>}</div>}
-            {s.motherName && <div className="flex justify-between items-center p-3 bg-gray-50 rounded-xl"><div><p className="text-sm font-semibold">👩 {s.motherName}</p><p className="text-xs text-gray-400">{s.motherPhone}</p></div>{s.motherPhone && <a href={`tel:${s.motherPhone}`} className="p-2 rounded-lg bg-green-50 text-green-600"><Phone size={16} /></a>}</div>}
+          <div className="px-6 -mt-10">
+            <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-2xl font-bold border-4 border-white shadow-lg" style={{ background: c?.color || '#6B7280' }}>{s.fullName.charAt(0)}</div>
           </div>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div>
+            <h2 className="text-xl font-extrabold">{s.fullName}</h2>
+            <p className="text-sm text-gray-500">{c?.icon} {s.group?.name || 'Guruhsiz'} • {s.age} yosh</p>
+          </div>
+
+          <div className="flex gap-2 border-b">
+            <button onClick={() => setTab('info')}
+              className={`px-4 py-2 text-sm font-semibold border-b-2 transition ${tab === 'info' ? 'border-teal-600 text-teal-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+              👤 Ma'lumotlar
+            </button>
+            <button onClick={() => setTab('attendance')}
+              className={`px-4 py-2 text-sm font-semibold border-b-2 transition flex items-center gap-1.5 ${tab === 'attendance' ? 'border-teal-600 text-teal-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+              <Calendar size={14} /> Davomat tarixi
+            </button>
+          </div>
+
+          {tab === 'info' && (
+            <div className="space-y-3">
+              {s.metrikaNumber && (
+                <div className="p-3 bg-blue-50 rounded-xl">
+                  <p className="text-xs text-blue-500 font-semibold">📋 Metrika</p>
+                  <p className="text-sm font-bold text-blue-800">{s.metrikaNumber}</p>
+                </div>
+              )}
+              <div className="space-y-2">
+                <h4 className="text-sm font-bold">👨‍👩‍👦 Ota-ona</h4>
+                {s.fatherName && (
+                  <div className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
+                    <div><p className="text-sm font-semibold">👨 {s.fatherName}</p><p className="text-xs text-gray-400">{s.fatherPhone}</p></div>
+                    {s.fatherPhone && <a href={`tel:${s.fatherPhone}`} className="p-2 rounded-lg bg-green-50 text-green-600"><Phone size={16} /></a>}
+                  </div>
+                )}
+                {s.motherName && (
+                  <div className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
+                    <div><p className="text-sm font-semibold">👩 {s.motherName}</p><p className="text-xs text-gray-400">{s.motherPhone}</p></div>
+                    {s.motherPhone && <a href={`tel:${s.motherPhone}`} className="p-2 rounded-lg bg-green-50 text-green-600"><Phone size={16} /></a>}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {tab === 'attendance' && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Oyni tanlang</label>
+                <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)}
+                  className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:border-teal-500 focus:outline-none">
+                  {availableMonths.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+
+              {loadingAtt ? (
+                <div className="flex justify-center py-10">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600" />
+                </div>
+              ) : (
+                <>
+                  <div className="p-4 bg-gradient-to-br from-teal-50 to-green-50 rounded-xl border border-teal-100">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm font-semibold text-gray-700">Davomat foizi</span>
+                      <span className={`text-2xl font-extrabold ${percent >= 80 ? 'text-green-600' : percent >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
+                        {percent}%
+                      </span>
+                    </div>
+                    <div className="bg-white rounded-full h-2.5 overflow-hidden">
+                      <div className={`h-full rounded-full ${percent >= 80 ? 'bg-green-500' : percent >= 60 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                        style={{ width: `${percent}%` }} />
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 mt-3">
+                      <div className="text-center p-2 bg-white rounded-lg">
+                        <p className="text-lg font-bold text-green-600">{present}</p>
+                        <p className="text-[10px] text-gray-500">✅ Keldi</p>
+                      </div>
+                      <div className="text-center p-2 bg-white rounded-lg">
+                        <p className="text-lg font-bold text-red-600">{absent}</p>
+                        <p className="text-[10px] text-gray-500">❌ Kelmadi</p>
+                      </div>
+                      <div className="text-center p-2 bg-white rounded-lg">
+                        <p className="text-lg font-bold text-yellow-600">{excused}</p>
+                        <p className="text-[10px] text-gray-500">📝 Sababli</p>
+                      </div>
+                      <div className="text-center p-2 bg-white rounded-lg">
+                        <p className="text-lg font-bold text-orange-600">{late}</p>
+                        <p className="text-[10px] text-gray-500">⏰ Kech</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {filteredAtt.length > 0 ? (
+                    <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                      {[...filteredAtt].sort((a, b) => new Date(b.date) - new Date(a.date)).map((a, i) => {
+                        const info = statusLabel[a.status] || { label: a.status || '—', color: 'bg-gray-50 text-gray-700' };
+                        return (
+                          <div key={a.id || i} className="flex justify-between items-center p-2.5 bg-gray-50 rounded-xl">
+                            <span className="text-sm font-medium text-gray-700">
+                              {new Date(a.date).toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', weekday: 'short' })}
+                            </span>
+                            <span className={`text-xs px-2.5 py-1 rounded-lg font-semibold ${info.color}`}>{info.label}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-center text-gray-400 py-6 text-sm">Bu oyda davomat yozuvi yo'q</p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect ,useMemo} from 'react';
 import { Plus, Trash2, Filter, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Calendar } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { paymentsAPI, groupsAPI, studentsAPI } from '../../utils/api';
@@ -49,7 +49,30 @@ export default function Finance() {
   const currentPrice = getDynamicPrice();
   const today = new Date().getDate();
 
-  if (loading) return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600" /></div>;
+  // Oy tanlanmagan bo'lsa — joriy oy
+const selectedMonth = filterMonth || new Date().toISOString().slice(0, 7);
+
+// Guruhlar kesimida to'laganlar va qarzdorlar
+const groupBreakdown = useMemo(() => {
+  return groups.map(g => {
+    const groupStudents = students.filter(s => s.groupId === g.id && s.status === 'ACTIVE');
+    const paid = [];
+    const debtors = [];
+    groupStudents.forEach(s => {
+      const payment = payments.find(p =>
+        p.studentId === s.id && p.monthFor === selectedMonth
+      );
+      if (payment) {
+        paid.push({ ...s, paymentAmount: payment.amount, paymentDate: payment.paymentDate });
+      } else {
+        debtors.push(s);
+      }
+    });
+    return { group: g, paid, debtors, total: groupStudents.length };
+  }).filter(g => g.total > 0);
+}, [groups, students, payments, selectedMonth]);
+  
+if (loading) return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600" /></div>;
 
   return (
     <div className="space-y-5 animate-fadeIn">
@@ -162,20 +185,82 @@ export default function Finance() {
       </div>
 
       {/* Qarzdorlar */}
-      {stats?.debtors && stats.debtors.length > 0 && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-5">
-          <h3 className="font-bold mb-4 flex items-center gap-2"><AlertTriangle size={18} className="text-red-500" /> Qarzdorlar</h3>
-          <div className="space-y-2">{stats.debtors.map(d => (
-            <div key={d.id} className="flex justify-between items-center p-3 bg-red-50/50 rounded-xl">
-              <div>
-                <p className="font-semibold">{d.fullName}</p>
-                <p className="text-xs text-gray-500">{d.group?.course?.icon} {d.group?.name || 'Guruhsiz'}</p>
+      {/* Guruhlar kesimida oy bo'yicha to'lov holati */}
+<div className="bg-white rounded-2xl border border-gray-200 p-5">
+  <div className="flex justify-between items-center mb-4">
+    <h3 className="font-bold flex items-center gap-2">
+      <Calendar size={18} className="text-teal-600" />
+      Guruhlar kesimida — {selectedMonth}
+    </h3>
+    <input type="month" value={selectedMonth}
+      onChange={e => setFilterMonth(e.target.value)}
+      className="px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:border-teal-500 focus:outline-none" />
+  </div>
+  {groupBreakdown.length === 0 ? (
+    <p className="text-center text-gray-400 py-10">Guruh topilmadi</p>
+  ) : (
+    <div className="space-y-4">
+      {groupBreakdown.map(({ group, paid, debtors, total }) => {
+        const pct = total > 0 ? Math.round((paid.length / total) * 100) : 0;
+        const c = group.course;
+        return (
+          <div key={group.id} className="border border-gray-200 rounded-2xl overflow-hidden">
+            <div className="flex justify-between items-center px-4 py-3" style={{ background: `${c?.color}10` }}>
+              <div className="flex items-center gap-2">
+                <span className="text-xl">{c?.icon}</span>
+                <div>
+                  <p className="font-bold text-sm" style={{ color: c?.color }}>{group.name}</p>
+                  <p className="text-xs text-gray-500">{total} o'quvchi • {paid.length} to'lagan • {debtors.length} qarzdor</p>
+                </div>
               </div>
-              <p className="font-bold text-red-600">{formatMoney(d.balance)} so'm</p>
+              <div className="text-right">
+                <p className="text-lg font-extrabold" style={{ color: c?.color }}>{pct}%</p>
+                <div className="w-24 bg-gray-200 rounded-full h-1.5 mt-1">
+                  <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, background: c?.color }} />
+                </div>
+              </div>
             </div>
-          ))}</div>
-        </div>
-      )}
+            <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-100">
+              <div className="p-4">
+                <h4 className="text-xs font-bold text-green-600 mb-2">✅ To'laganlar ({paid.length})</h4>
+                {paid.length === 0 ? (
+                  <p className="text-xs text-gray-400 py-2">Hech kim to'lamagan</p>
+                ) : (
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                    {paid.map(s => (
+                      <div key={s.id} className="flex justify-between items-center p-2 bg-green-50/50 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700">{s.fullName}</span>
+                        <span className="text-xs font-bold text-green-600">+{formatMoney(s.paymentAmount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="p-4">
+                <h4 className="text-xs font-bold text-red-600 mb-2">❌ Qarzdorlar ({debtors.length})</h4>
+                {debtors.length === 0 ? (
+                  <p className="text-xs text-green-600 py-2 font-semibold">🎉 Hammasi to'lagan!</p>
+                ) : (
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                    {debtors.map(s => (
+                      <div key={s.id} className="flex justify-between items-center p-2 bg-red-50/50 rounded-lg">
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">{s.fullName}</p>
+                          {s.parentPhone && <p className="text-[10px] text-gray-400 font-mono">{s.parentPhone}</p>}
+                        </div>
+                        <span className="text-xs font-bold text-red-600">-400 000</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  )}
+</div>
 
       {showModal && <PaymentModal groups={groups} students={students} currentPrice={currentPrice} onSave={async (form) => {
         try { await paymentsAPI.create(form); toast.success("To'lov qabul qilindi!"); setShowModal(false); loadData(); } catch (e) {}
