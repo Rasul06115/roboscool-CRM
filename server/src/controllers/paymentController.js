@@ -61,15 +61,24 @@ exports.getStats = async (req, res, next) => {
     const now = new Date();
     const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const [totalRevenue, monthlyRevenue, debtors] = await Promise.all([
-      prisma.payment.aggregate({ _sum: { amount: true } }),
-      prisma.payment.aggregate({ _sum: { amount: true }, where: { paymentDate: { gte: thisMonthStart } } }),
-      prisma.student.findMany({
-        where: { balance: { lt: 0 }, status: 'ACTIVE' },
-        include: { group: { include: { course: true } } },
-        orderBy: { balance: 'asc' }, take: 20,
-      }),
-    ]);
+    const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    const [totalRevenue, monthlyRevenue, allActive] = await Promise.all([
+  prisma.payment.aggregate({ _sum: { amount: true } }),
+  prisma.payment.aggregate({ _sum: { amount: true }, where: { paymentDate: { gte: thisMonthStart } } }),
+  prisma.student.findMany({
+    where: { status: 'ACTIVE' },
+    include: {
+      group: { include: { course: true } },
+      payments: { where: { monthFor: monthStr } }
+    }
+  }),
+]);
+
+// Bu oy uchun to'lov qilmaganlar = qarzdorlar
+const debtors = allActive
+  .filter(s => s.payments.length === 0)
+  .map(s => ({ ...s, balance: -400000, payments: undefined }));
 
     res.json({
       success: true,
