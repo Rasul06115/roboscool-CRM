@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Filter, Save, Send, ChevronDown, ChevronUp, Star } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { groupsAPI, evaluationsAPI, smsAPI } from '../../utils/api';
-import { getStudentLevel, EVALUATION_RATINGS, EVALUATION_FIELDS } from '../../utils/helpers';
+import { groupsAPI, evaluationsAPI, smsAPI, achievementsAPI } from '../../utils/api';
+import { getStudentLevel, EVALUATION_RATINGS, EVALUATION_FIELDS, ACHIEVEMENT_TYPES } from '../../utils/helpers';
 
 const RATINGS = EVALUATION_RATINGS;
 const FIELDS = EVALUATION_FIELDS;
@@ -253,6 +253,43 @@ export default function Evaluation() {
                         onChange={e => updateStudentField(student.studentId, 'note', e.target.value)} />
                     </div>
 
+                    {/* ⭐ Ball berish */}
+                    <div className="mt-3 p-3 bg-purple-50/50 rounded-xl border border-purple-100">
+                      <p className="text-xs font-bold text-purple-700 mb-2">⭐ Tezkor ball berish</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {ACHIEVEMENT_TYPES.map(t => (
+                          <button key={t.value}
+                            onClick={async () => {
+                              try {
+                                await achievementsAPI.add({
+                                  studentId: student.studentId,
+                                  type: t.value,
+                                  title: t.label.replace(/^[^\s]+\s/, ''),
+                                  points: t.defaultPoints,
+                                  sendSms: false,
+                                });
+                                // Ballni yangilash
+                                const newPoints = (student.totalPoints || 0) + t.defaultPoints;
+                                setStudentsData(prev => prev.map(s =>
+                                  s.studentId === student.studentId
+                                    ? { ...s, totalPoints: newPoints }
+                                    : s
+                                ));
+                                const emoji = t.defaultPoints < 0 ? '⛔' : '⭐';
+                                toast.success(`${student.fullName}: ${t.defaultPoints > 0 ? '+' : ''}${t.defaultPoints} ball ${emoji}`);
+                              } catch (e) { toast.error('Xatolik!'); }
+                            }}
+                            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all hover:scale-105 ${
+                              t.value === 'PENALTY'
+                                ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                                : 'bg-white text-purple-700 hover:bg-purple-100 border border-purple-200'
+                            }`}>
+                            {t.icon} {t.label.replace(/^[^\s]+\s/, '')} ({t.defaultPoints > 0 ? '+' : ''}{t.defaultPoints})
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                     {/* Amallar */}
                     <div className="flex gap-2 mt-3">
                       <button onClick={() => handleSave(student.studentId, false)} disabled={isSaving}
@@ -276,3 +313,4 @@ export default function Evaluation() {
     </div>
   );
 }
+
