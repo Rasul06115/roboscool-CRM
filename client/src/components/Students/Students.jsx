@@ -122,6 +122,7 @@ function StudentFormModal({ student, groups, onSave, onClose }) {
     motherName: student?.motherName || '', motherPhone: student?.motherPhone || '',
     parentPhone: student?.parentPhone || '', address: student?.address || '',
     groupId: student?.groupId || '', balance: student?.balance || 0, progress: student?.progress || 0,
+    totalPoints: student?.totalPoints || 0,
     status: student?.status || 'ACTIVE', notes: student?.notes || '',
   });
 
@@ -158,10 +159,51 @@ function StudentFormModal({ student, groups, onSave, onClose }) {
             <div><label className="block text-xs font-semibold text-gray-600 mb-1">Guruh</label><select className={ic} value={f.groupId} onChange={e => setF({...f, groupId: e.target.value})}><option value="">Tanlang</option>{groups.map(g => <option key={g.id} value={g.id}>{g.course?.icon} {g.name}</option>)}</select></div>
             <div><label className="block text-xs font-semibold text-gray-600 mb-1">Status</label><select className={ic} value={f.status} onChange={e => setF({...f, status: e.target.value})}><option value="ACTIVE">Faol</option><option value="INACTIVE">Nofaol</option><option value="GRADUATED">Bitirgan</option></select></div>
           </div></div>
+
+          {/* Daraja va Ball */}
+          <div><h4 className="text-sm font-bold text-gray-700 mb-3">🏆 Daraja va Ball</h4>
+            <div className="grid grid-cols-5 gap-1.5 mb-3">
+              {[
+                { name: 'Beginner', emoji: '🟢', min: 0, color: '#22C55E' },
+                { name: 'Junior', emoji: '🔵', min: 51, color: '#3B82F6' },
+                { name: 'Middle', emoji: '🟡', min: 151, color: '#EAB308' },
+                { name: 'Senior', emoji: '🟠', min: 301, color: '#F97316' },
+                { name: 'Master', emoji: '🔴', min: 501, color: '#EF4444' },
+              ].map(lvl => {
+                const pts = Number(f.totalPoints) || 0;
+                const isActive = (lvl.name === 'Beginner' && pts <= 50) ||
+                  (lvl.name === 'Junior' && pts >= 51 && pts <= 150) ||
+                  (lvl.name === 'Middle' && pts >= 151 && pts <= 300) ||
+                  (lvl.name === 'Senior' && pts >= 301 && pts <= 500) ||
+                  (lvl.name === 'Master' && pts >= 501);
+                return (
+                  <button key={lvl.name} type="button"
+                    onClick={() => setF({...f, totalPoints: lvl.min})}
+                    className={`p-2 rounded-xl text-center text-xs font-bold transition-all border-2 ${
+                      isActive ? 'border-current shadow-sm' : 'border-transparent hover:border-gray-200'
+                    }`}
+                    style={isActive ? { background: `${lvl.color}15`, color: lvl.color, borderColor: lvl.color } : {}}>
+                    <span className="text-lg block">{lvl.emoji}</span>
+                    {lvl.name}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">⭐ Umumiy ball</label>
+                <input className={ic} type="number" min="0" value={f.totalPoints} onChange={e => setF({...f, totalPoints: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">📈 O'zlashtirish %</label>
+                <input className={ic} type="number" min="0" max="100" value={f.progress} onChange={e => setF({...f, progress: e.target.value})} />
+              </div>
+            </div>
+          </div>
           <div><label className="block text-xs font-semibold text-gray-600 mb-1">📝 Izoh</label><textarea className={`${ic} min-h-[60px]`} value={f.notes} onChange={e => setF({...f, notes: e.target.value})} /></div>
           <div className="flex justify-end gap-3">
             <button onClick={onClose} className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold">Bekor</button>
-            <button onClick={() => { if (!f.fullName || !f.parentPhone) { toast.error("Ism va telefon kerak!"); return; } onSave({ ...f, age: f.age ? Number(f.age) : null, balance: Number(f.balance), progress: Number(f.progress), groupId: f.groupId || null }); }}
+            <button onClick={() => { if (!f.fullName || !f.parentPhone) { toast.error("Ism va telefon kerak!"); return; } onSave({ ...f, age: f.age ? Number(f.age) : null, balance: Number(f.balance), progress: Number(f.progress), totalPoints: Number(f.totalPoints), groupId: f.groupId || null }); }}
               className="px-5 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700">{student ? 'Saqlash' : "Qo'shish"}</button>
           </div>
         </div>
