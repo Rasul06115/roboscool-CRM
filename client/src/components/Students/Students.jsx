@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Search, Plus, Pencil, Trash2, MessageSquare, Phone, Eye, X, Filter, Calendar } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { studentsAPI, groupsAPI, smsAPI, attendanceAPI } from '../../utils/api';
-import { formatMoney } from '../../utils/helpers';
+import { formatMoney, getStudentLevel, getPointsToNextLevel } from '../../utils/helpers';
 
 export default function Students() {
   const [students, setStudents] = useState([]);
@@ -82,7 +82,7 @@ export default function Students() {
                   <td className="px-3 py-3 text-gray-400 font-semibold text-center">{i + 1}</td>
                   <td className="px-3 py-3"><div className="flex items-center gap-2">
                     <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold text-sm" style={{ background: c?.color || '#6B7280' }}>{s.fullName.charAt(0)}</div>
-                    <div><p className="font-semibold">{s.fullName}</p><div className="flex items-center gap-1">
+                    <div><p className="font-semibold">{s.fullName} <span className="text-xs" title={`${s.totalPoints || 0} ball`}>{getStudentLevel(s.totalPoints).emoji}</span></p><div className="flex items-center gap-1">
                       <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${s.status === 'ACTIVE' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{s.status === 'ACTIVE' ? 'Faol' : 'Nofaol'}</span>
                       {s.metrikaNumber && <span className="text-xs text-gray-400">• {s.metrikaNumber}</span>}
                     </div></div></div></td>
@@ -112,7 +112,11 @@ export default function Students() {
 }
 
 function StudentFormModal({ student, groups, onSave, onClose }) {
+  // Ism va familiyani ajratish
+  const nameParts = (student?.fullName || '').split(' ');
   const [f, setF] = useState({
+    firstName: student ? (nameParts.slice(1).join(' ') || '') : '',
+    lastName: student ? (nameParts[0] || '') : '',
     fullName: student?.fullName || '', age: student?.age || '', metrikaNumber: student?.metrikaNumber || '',
     fatherName: student?.fatherName || '', fatherPhone: student?.fatherPhone || '',
     motherName: student?.motherName || '', motherPhone: student?.motherPhone || '',
@@ -120,6 +124,14 @@ function StudentFormModal({ student, groups, onSave, onClose }) {
     groupId: student?.groupId || '', balance: student?.balance || 0, progress: student?.progress || 0,
     status: student?.status || 'ACTIVE', notes: student?.notes || '',
   });
+
+  // Ism o'zgarganda fullName yangilanadi
+  const updateName = (field, value) => {
+    const updated = { ...f, [field]: value };
+    updated.fullName = `${updated.lastName} ${updated.firstName}`.trim();
+    setF(updated);
+  };
+
   const ic = "w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:border-teal-500 focus:outline-none";
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
@@ -129,10 +141,11 @@ function StudentFormModal({ student, groups, onSave, onClose }) {
         </div>
         <div className="p-6 space-y-5">
           <div><h4 className="text-sm font-bold text-gray-700 mb-3">👤 Asosiy</h4><div className="grid grid-cols-2 gap-4">
-            <div><label className="block text-xs font-semibold text-gray-600 mb-1">Ism *</label><input className={ic} value={f.fullName} onChange={e => setF({...f, fullName: e.target.value})} /></div>
+            <div><label className="block text-xs font-semibold text-gray-600 mb-1">Familiya *</label><input className={ic} value={f.lastName} onChange={e => updateName('lastName', e.target.value)} placeholder="Karimov" /></div>
+            <div><label className="block text-xs font-semibold text-gray-600 mb-1">Ism *</label><input className={ic} value={f.firstName} onChange={e => updateName('firstName', e.target.value)} placeholder="Aziz" /></div>
             <div><label className="block text-xs font-semibold text-gray-600 mb-1">Yoshi</label><input className={ic} type="number" value={f.age} onChange={e => setF({...f, age: e.target.value})} /></div>
             <div><label className="block text-xs font-semibold text-gray-600 mb-1">Metrika</label><input className={ic} value={f.metrikaNumber} onChange={e => setF({...f, metrikaNumber: e.target.value})} placeholder="I-TM 1234567" /></div>
-            <div><label className="block text-xs font-semibold text-gray-600 mb-1">Manzil</label><input className={ic} value={f.address} onChange={e => setF({...f, address: e.target.value})} /></div>
+            <div className="col-span-2"><label className="block text-xs font-semibold text-gray-600 mb-1">Manzil</label><input className={ic} value={f.address} onChange={e => setF({...f, address: e.target.value})} /></div>
           </div></div>
           <div><h4 className="text-sm font-bold text-gray-700 mb-3">👨‍👩‍👦 Ota-ona</h4><div className="grid grid-cols-2 gap-4">
             <div><label className="block text-xs font-semibold text-gray-600 mb-1">👨 Otasi</label><input className={ic} value={f.fatherName} onChange={e => setF({...f, fatherName: e.target.value})} /></div>
@@ -219,15 +232,19 @@ function ProfileModal({ student, onClose }) {
   const [loadingAtt, setLoadingAtt] = useState(false);
   const [filterMonth, setFilterMonth] = useState(new Date().toISOString().slice(0, 7));
 
+  const level = getStudentLevel(s.totalPoints);
+  const nextInfo = getPointsToNextLevel(s.totalPoints);
+
   useEffect(() => {
     if (tab === 'attendance') {
       setLoadingAtt(true);
       attendanceAPI.getByStudent(s.id)
         .then(r => {
           let arr = [];
-          if (Array.isArray(r)) arr = r;
+          if (Array.isArray(r?.data?.records)) arr = r.data.records;
           else if (Array.isArray(r?.data)) arr = r.data;
-          else if (Array.isArray(r?.attendance)) arr = r.attendance;
+          else if (Array.isArray(r?.records)) arr = r.records;
+          else if (Array.isArray(r)) arr = r;
           setAttendance(arr);
         })
         .catch((err) => {
@@ -283,8 +300,26 @@ function ProfileModal({ student, onClose }) {
 
         <div className="p-6 space-y-4">
           <div>
-            <h2 className="text-xl font-extrabold">{s.fullName}</h2>
-            <p className="text-sm text-gray-500">{c?.icon} {s.group?.name || 'Guruhsiz'} • {s.age} yosh</p>
+            <div className="flex justify-between items-start">
+              <div>
+                <h2 className="text-xl font-extrabold">{s.fullName}</h2>
+                <p className="text-sm text-gray-500">{c?.icon} {s.group?.name || 'Guruhsiz'} • {s.age} yosh</p>
+              </div>
+              <div className="text-right">
+                <span className="text-lg font-bold" style={{ color: level.color }}>{level.emoji} {level.name}</span>
+                <p className="text-xs text-gray-500">⭐ {s.totalPoints || 0} ball</p>
+              </div>
+            </div>
+            {/* Level progress */}
+            <div className="mt-2 p-2.5 rounded-xl" style={{ background: `${level.color}10` }}>
+              <div className="flex justify-between text-[10px] text-gray-500 mb-0.5">
+                <span>{level.emoji} {level.name}</span>
+                <span>{nextInfo.next ? `${nextInfo.next.emoji} ${nextInfo.next.name} gacha ${nextInfo.remaining} ball` : '🏆 Eng yuqori daraja!'}</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-1.5">
+                <div className="h-1.5 rounded-full transition-all" style={{ width: `${nextInfo.progress}%`, background: level.color }} />
+              </div>
+            </div>
           </div>
 
           <div className="flex gap-2 border-b">
