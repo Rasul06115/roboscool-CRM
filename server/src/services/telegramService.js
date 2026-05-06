@@ -104,6 +104,7 @@ const initBot = () => {
           include: {
             group: { include: { course: true } },
             achievements: { orderBy: { createdAt: 'desc' }, take: 5 },
+            evaluations: { orderBy: { period: 'desc' }, take: 1 },
           },
         });
 
@@ -114,6 +115,9 @@ const initBot = () => {
           );
           return;
         }
+
+        const ratingEmoji = { POOR: '🔴', AVERAGE: '🟡', GOOD: '🟢', EXCELLENT: '⭐' };
+        const ratingLabel = { POOR: 'Qoniqarsiz', AVERAGE: "O'rta", GOOD: 'Yaxshi', EXCELLENT: "A'lo" };
 
         for (const student of students) {
           const totalPoints = student.totalPoints || 0;
@@ -148,6 +152,20 @@ const initBot = () => {
             });
           }
 
+          // So'nggi baholash
+          let evalText = '';
+          const eval_ = student.evaluations[0];
+          if (eval_) {
+            evalText = `\n📊 *Baholash (${eval_.period}):*\n` +
+              `  ${ratingEmoji[eval_.teamwork]} Jamoaviy ish: ${ratingLabel[eval_.teamwork]}\n` +
+              `  ${ratingEmoji[eval_.thinking]} Fikrlash: ${ratingLabel[eval_.thinking]}\n` +
+              `  ${ratingEmoji[eval_.behavior]} Xulq: ${ratingLabel[eval_.behavior]}\n` +
+              `  ${ratingEmoji[eval_.mastery]} O'zlashtirish: ${ratingLabel[eval_.mastery]}\n` +
+              `  ${ratingEmoji[eval_.creativity]} Kreativ fikrlash: ${ratingLabel[eval_.creativity]}\n` +
+              `  ${ratingEmoji[eval_.decisionMaking]} Tezkor qaror: ${ratingLabel[eval_.decisionMaking]}\n` +
+              `  ${ratingEmoji[eval_.independence]} Mustaqillik: ${ratingLabel[eval_.independence]}\n`;
+          }
+
           const message =
             `👤 *${student.fullName}*\n\n` +
             `${level.emoji} Daraja: *${level.name}*\n` +
@@ -155,7 +173,7 @@ const initBot = () => {
             `📚 Kurs: *${student.group?.course?.name || '—'}*\n` +
             `👥 Guruh: *${student.group?.name || '—'}*\n` +
             `📊 Davomat: *${attRate}%* (${presentAtt}/${totalAtt})\n` +
-            `📈 O'zlashtirish: *${student.progress}%*\n` +
+            evalText +
             achievementText;
 
           bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });

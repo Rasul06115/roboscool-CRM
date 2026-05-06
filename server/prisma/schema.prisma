@@ -183,11 +183,12 @@ model Student {
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
 
-  group        Group?        @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  group        Group?              @relation(fields: [groupId], references: [id], onDelete: SetNull)
   payments     Payment[]
   attendance   Attendance[]
   documents    Document[]
   achievements Achievement[]
+  evaluations  StudentEvaluation[]
 
   @@map("students")
 }
@@ -213,7 +214,7 @@ model Attendance {
 model Achievement {
   id          String          @id @default(uuid())
   studentId   String          @map("student_id")
-  type        AchievementType @default(PROJECT) 
+  type        AchievementType @default(PROJECT)
   title       String
   description String?
   points      Int             @default(0)
@@ -224,6 +225,36 @@ model Achievement {
 
   @@index([studentId])
   @@map("achievements")
+}
+
+enum EvaluationRating {
+  POOR
+  AVERAGE
+  GOOD
+  EXCELLENT
+}
+
+model StudentEvaluation {
+  id             String           @id @default(uuid())
+  studentId      String           @map("student_id")
+  period         String                                    // "2026-05" format
+  teamwork       EvaluationRating @default(AVERAGE)        // Jamoaviy ish
+  thinking       EvaluationRating @default(AVERAGE)        // Fikrlash
+  behavior       EvaluationRating @default(GOOD)           // Xulq
+  mastery        EvaluationRating @default(AVERAGE)        // O'zlashtirish
+  creativity     EvaluationRating @default(AVERAGE)        // Kreativ fikrlash
+  decisionMaking EvaluationRating @default(AVERAGE) @map("decision_making")  // Tezkor qaror
+  independence   EvaluationRating @default(AVERAGE)        // Mustaqillik
+  note           String?
+  smsSent        Boolean          @default(false) @map("sms_sent")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, period])
+  @@index([studentId])
+  @@map("student_evaluations")
 }
 
 model Payment {

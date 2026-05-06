@@ -106,9 +106,18 @@ export const achievementsAPI = {
   getLeaderboard: () => api.get('/achievements/leaderboard'),
 };
 
+export const evaluationsAPI = {
+  upsert: (data) => api.post('/evaluations', data),
+  getByStudent: (id) => api.get(`/evaluations/student/${id}`),
+  getByGroup: (params) => api.get('/evaluations/group', { params }),
+};
+
 export const smsAPI = {
   send: (data) => api.post('/sms/send', data),
   sendReminders: () => api.post('/sms/reminders'),
+  sendPoints: (data) => api.post('/sms/points', data),
+  sendGroupJoin: (data) => api.post('/sms/group-join', data),
+  sendBulk: (data) => api.post('/sms/bulk', data),
   getLogs: () => api.get('/sms/logs'),
 };
 

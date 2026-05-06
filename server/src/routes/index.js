@@ -11,6 +11,7 @@ const paymentCtrl = require('../controllers/paymentController');
 const leadCtrl = require('../controllers/leadController');
 const attCtrl = require('../controllers/attendanceController');
 const sfCtrl = require('../controllers/smsFileController');
+const evalCtrl = require('../controllers/evaluationController');
 
 // ==================== AUTH ====================
 router.post('/auth/login', authValidation.login, authCtrl.login);
@@ -112,6 +113,16 @@ router.get('/attendance/student/:studentId', attCtrl.getStudentAttendance);
 router.post('/achievements', attCtrl.addAchievement);
 router.get('/achievements/student/:studentId', attCtrl.getStudentAchievements);
 router.get('/achievements/leaderboard', attCtrl.getLeaderboard);
+
+// Evaluations (Baholash)
+router.post('/evaluations', evalCtrl.upsertEvaluation);
+router.get('/evaluations/student/:studentId', evalCtrl.getStudentEvaluations);
+router.get('/evaluations/group', evalCtrl.getGroupEvaluations);
+
+// SMS Templates (Ommaviy SMS)
+router.post('/sms/points', evalCtrl.sendPointsSms);
+router.post('/sms/group-join', evalCtrl.sendGroupJoinSms);
+router.post('/sms/bulk', authorize('ADMIN', 'MANAGER'), evalCtrl.sendBulkSms);
 
 // SMS
 router.post('/sms/send', authorize('ADMIN', 'MANAGER'), sfCtrl.sendSms);

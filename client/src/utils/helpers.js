@@ -53,3 +53,35 @@ export const getLevelBadge = (totalPoints) => {
   const level = getStudentLevel(totalPoints);
   return `${level.emoji} ${level.name}`;
 };
+
+// ==================== BAHOLASH TIZIMI ====================
+
+export const EVALUATION_RATINGS = [
+  { value: 'POOR', label: 'Qoniqarsiz', emoji: '🔴', color: '#EF4444' },
+  { value: 'AVERAGE', label: "O'rta", emoji: '🟡', color: '#EAB308' },
+  { value: 'GOOD', label: 'Yaxshi', emoji: '🟢', color: '#22C55E' },
+  { value: 'EXCELLENT', label: "A'lo", emoji: '⭐', color: '#F59E0B' },
+];
+
+export const EVALUATION_FIELDS = [
+  { key: 'teamwork', label: 'Jamoaviy ish', icon: '🤝', description: "Guruhda ishlash qobiliyati" },
+  { key: 'thinking', label: 'Fikrlash', icon: '🧠', description: "Mantiqiy fikrlash" },
+  { key: 'behavior', label: 'Xulq', icon: '😊', description: "Darsda o'zini tutishi" },
+  { key: 'mastery', label: "O'zlashtirish", icon: '📚', description: "Materialni o'zlashtirish" },
+  { key: 'creativity', label: 'Kreativ fikrlash', icon: '💡', description: "Ijodiy yondashuv" },
+  { key: 'decisionMaking', label: 'Tezkor qaror', icon: '⚡', description: "Qaror qabul qilish" },
+  { key: 'independence', label: 'Mustaqillik', icon: '🎯', description: "Mustaqil ishlash" },
+];
+
+export const getRatingInfo = (rating) => {
+  return EVALUATION_RATINGS.find(r => r.value === rating) || EVALUATION_RATINGS[1];
+};
+
+// ==================== SMS SHABLONLARI ====================
+
+export const SMS_TEMPLATES = [
+  { id: 'TELEGRAM_JOIN', label: '📱 Telegram guruhga kirish', description: "Ota-onalarga Telegram guruhga qo'shilish eslatmasi" },
+  { id: 'PAYMENT_REMINDER', label: "💰 To'lov eslatmasi", description: "To'lov muddati haqida eslatma" },
+  { id: 'MONTHLY_REPORT', label: '📊 Oylik hisobot', description: "O'quvchi oylik natijalarini yuborish" },
+  { id: 'CUSTOM', label: '✏️ Shaxsiy xabar', description: "O'z xabaringizni yozing ({ism}, {ball}, {daraja} ishlatiladi)" },
+];
