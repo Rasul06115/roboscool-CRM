@@ -2,38 +2,25 @@ const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient({
   log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL,
-    },
-  },
 });
 
-// Neon Free uxlaganda ulanish uziladi — avtomatik qayta ulash
-const MAX_RETRIES = 3;
-const originalRequest = prisma.$request;
+// Neon Free uxlaganda ulanishni issiq saqlash
+const KEEP_ALIVE_INTERVAL = 4 * 60 * 1000; // 4 daqiqa
 
-prisma.$use(async (params, next) => {
-  let retries = 0;
-  while (true) {
+setInterval(async () => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+  } catch (e) {
+    console.log('⚠️ DB keep-alive xato, qayta ulanish...');
     try {
-      return await next(params);
-    } catch (error) {
-      if (
-        retries < MAX_RETRIES &&
-        (error.message?.includes('kind: Closed') ||
-         error.message?.includes('Connection refused') ||
-         error.message?.includes('connection is not available') ||
-         error.code === 'P2024')
-      ) {
-        retries++;
-        console.log(`⚠️ DB ulanish uzildi, qayta urinish ${retries}/${MAX_RETRIES}...`);
-        await new Promise(r => setTimeout(r, 1000 * retries));
-        continue;
-      }
-      throw error;
+      await prisma.$disconnect();
+      await prisma.$connect();
+      console.log('✅ DB qayta ulandi');
+    } catch (err) {
+      console.error('❌ DB qayta ulanish xatosi:', err.message);
     }
   }
-});
+}, KEEP_ALIVE_INTERVAL);
 
-module.exports = prisma;
+module.exports = prisma; 
+
