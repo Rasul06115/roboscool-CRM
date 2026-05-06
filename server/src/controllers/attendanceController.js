@@ -224,12 +224,28 @@ exports.addAchievement = async (req, res, next) => {
       data: { totalPoints: { increment: Number(points) } },
     });
 
-    // SMS yuborish (ota-onaga tabrik)
+    // SMS yuborish (ota-onaga tabrik yoki ogohlantirish)
     if (sendSms) {
       const student = achievement.student;
       const totalPoints = student.totalPoints + Number(points);
+      const isPenalty = Number(points) < 0;
 
-      const message = `RoboSchool: Tabriklaymiz! 🎉 Farzandingiz ${student.fullName} "${title}" loyihasini muvaffaqiyatli topshirdi va ${points} ball oldi! Umumiy ball: ${totalPoints}. Rahmat, davom eting!`;
+      // Daraja aniqlash
+      const levels = [
+        { name: 'Beginner', emoji: '🟢', min: 0, max: 50 },
+        { name: 'Junior', emoji: '🔵', min: 51, max: 150 },
+        { name: 'Middle', emoji: '🟡', min: 151, max: 300 },
+        { name: 'Senior', emoji: '🟠', min: 301, max: 500 },
+        { name: 'Master', emoji: '🔴', min: 501, max: Infinity },
+      ];
+      const level = levels.find(l => totalPoints >= l.min && totalPoints <= l.max) || levels[0];
+
+      let message;
+      if (isPenalty) {
+        message = `RoboSchool: Hurmatli ota-ona, farzandingiz ${student.fullName} ga "${title}" sabab ${Math.abs(points)} ball ayirildi. Jami: ${totalPoints} ball (${level.emoji} ${level.name}). Iltimos, e'tibor bering.`;
+      } else {
+        message = `RoboSchool: Tabriklaymiz! 🎉 Farzandingiz ${student.fullName} "${title}" uchun ${points} ball oldi! Jami: ${totalPoints} ball (${level.emoji} ${level.name}). Zo'r natija!`;
+      }
 
       const result = await smsService.sendSms(student.parentPhone, message);
       if (result.success) {
@@ -241,10 +257,11 @@ exports.addAchievement = async (req, res, next) => {
 
       // Telegram bildirishnoma
       telegramService.notifyAdmin(
-        `🎉 *Yangi yutuq!*\n\n` +
+        `${isPenalty ? '⛔' : '🎉'} *${isPenalty ? 'Jazo' : 'Yangi yutuq'}!*\n\n` +
         `👤 ${student.fullName}\n` +
-        `🏆 ${title}\n` +
-        `⭐ +${points} ball (jami: ${totalPoints})\n` +
+        `${isPenalty ? '⛔' : '🏆'} ${title}\n` +
+        `⭐ ${isPenalty ? '' : '+'}${points} ball (jami: ${totalPoints})\n` +
+        `${level.emoji} Daraja: ${level.name}\n` +
         `📱 SMS: ${result.success ? 'Yuborildi ✅' : 'Xatolik ❌'}`
       );
     }
@@ -265,16 +282,31 @@ exports.getStudentAchievements = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-// Barcha yutuqlar (top o'quvchilar)
+// Barcha yutuqlar (top o'quvchilar + daraja)
 exports.getLeaderboard = async (req, res, next) => {
   try {
     const students = await prisma.student.findMany({
       where: { status: 'ACTIVE', totalPoints: { gt: 0 } },
       include: { group: { include: { course: true } } },
       orderBy: { totalPoints: 'desc' },
-      take: 20,
+      take: 30,
     });
-    res.json({ success: true, data: students });
+
+    // Daraja hisoblash
+    const levels = [
+      { name: 'Beginner', emoji: '🟢', min: 0, max: 50 },
+      { name: 'Junior', emoji: '🔵', min: 51, max: 150 },
+      { name: 'Middle', emoji: '🟡', min: 151, max: 300 },
+      { name: 'Senior', emoji: '🟠', min: 301, max: 500 },
+      { name: 'Master', emoji: '🔴', min: 501, max: Infinity },
+    ];
+
+    const data = students.map(s => {
+      const level = levels.find(l => s.totalPoints >= l.min && s.totalPoints <= l.max) || levels[0];
+      return { ...s, level: level.name, levelEmoji: level.emoji };
+    });
+
+    res.json({ success: true, data });
   } catch (err) { next(err); }
 };
 

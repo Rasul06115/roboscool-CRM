@@ -29,32 +29,32 @@ async function main() {
 
   const courses = [];
   for (const c of [
-    { name: 'Scratch Jr', icon: '🧩', color: '#FF6B35', ageRange: '7-9', duration: '3 oy', price: 400000, description: "Boshlang'ich dasturlash" },
-    { name: 'Arduino', icon: '⚡', color: '#00A6A6', ageRange: '12-16', duration: '6 oy', price: 500000, description: 'Elektronika va robotika' },
-    { name: 'Lego Robotics', icon: '🤖', color: '#E63946', ageRange: '8-12', duration: '4 oy', price: 450000, description: 'LEGO robot yaratish' },
-    { name: 'Python', icon: '🐍', color: '#2EC4B6', ageRange: '13-17', duration: '6 oy', price: 500000, description: 'Python dasturlash tili' },
-    { name: '3D Modeling', icon: '🎨', color: '#9B5DE5', ageRange: '10-15', duration: '4 oy', price: 450000, description: '3D dizayn va print' },
+    { name: 'Robototexnika', icon: '🤖', color: '#E63946', ageRange: '8-14', duration: '6 oy', price: 450000, discountPrice: 430000, description: 'Robot yaratish va dasturlash' },
+    { name: 'Python IT', icon: '🐍', color: '#2EC4B6', ageRange: '12-17', duration: '6 oy', price: 450000, discountPrice: 430000, description: 'Python dasturlash tili' },
+    { name: 'Telegram-bot', icon: '🤖', color: '#0088CC', ageRange: '14-18', duration: '4 oy', price: 650000, discountPrice: 600000, description: 'Telegram bot yaratish' },
+    { name: 'AI', icon: '🧠', color: '#9B5DE5', ageRange: '15-18', duration: '6 oy', price: 1200000, discountPrice: 1100000, description: "Sun'iy intellekt asoslari" },
+    { name: 'Scratch Jr', icon: '🧩', color: '#FF6B35', ageRange: '7-9', duration: '3 oy', price: 400000, discountPrice: 380000, description: "Boshlang'ich dasturlash" },
   ]) { courses.push(await prisma.course.create({ data: c })); }
   console.log(`✅ ${courses.length} ta kurs`);
 
   const teachers = [];
   for (const t of [
-    { fullName: 'Jamshid Kamolov', phone: '+998901111111', specialization: 'Scratch, Blockly', salary: 3000000 },
-    { fullName: 'Sardor Yusupov', phone: '+998902222222', specialization: 'Arduino, Elektronika', salary: 3500000 },
-    { fullName: 'Nilufar Ahmedova', phone: '+998903333333', specialization: 'Lego Robotics', salary: 3000000 },
-    { fullName: 'Alisher Rahmatov', phone: '+998904444444', specialization: 'Python, AI', salary: 4000000 },
-    { fullName: 'Madina Sobirov', phone: '+998905555555', specialization: '3D Modeling, CAD', salary: 3500000 },
+    { fullName: 'Jamshid Kamolov', phone: '+998901111111', specialization: 'Robototexnika', salary: 3000000 },
+    { fullName: 'Sardor Yusupov', phone: '+998902222222', specialization: 'Python IT', salary: 3500000 },
+    { fullName: 'Nilufar Ahmedova', phone: '+998903333333', specialization: 'Telegram-bot', salary: 3000000 },
+    { fullName: 'Alisher Rahmatov', phone: '+998904444444', specialization: 'AI, Python', salary: 4000000 },
+    { fullName: 'Madina Sobirov', phone: '+998905555555', specialization: 'Scratch Jr', salary: 3500000 },
   ]) { teachers.push(await prisma.teacher.create({ data: t })); }
   console.log(`✅ ${teachers.length} ta o'qituvchi`);
 
   // GURUHLAR — haftada 3 marta, 2 soatdan
   const groups = [];
   for (const g of [
-    { name: 'Scratch-A1', courseId: courses[0].id, teacherId: teachers[0].id, schedule: 'Du-Cho-Sha 08:00-10:00', weekDays: 'Du,Cho,Sha', timeSlot: 'MORNING', startTime: '08:00', endTime: '10:00', maxSize: 12 },
-    { name: 'Arduino-B1', courseId: courses[1].id, teacherId: teachers[1].id, schedule: 'Se-Pay-Sha 08:00-10:00', weekDays: 'Se,Pay,Sha', timeSlot: 'MORNING', startTime: '08:00', endTime: '10:00', maxSize: 10 },
-    { name: 'Lego-C1', courseId: courses[2].id, teacherId: teachers[2].id, schedule: 'Du-Cho-Sha 15:00-17:00', weekDays: 'Du,Cho,Sha', timeSlot: 'AFTERNOON', startTime: '15:00', endTime: '17:00', maxSize: 12 },
-    { name: 'Python-D1', courseId: courses[3].id, teacherId: teachers[3].id, schedule: 'Se-Pay-Sha 15:00-17:00', weekDays: 'Se,Pay,Sha', timeSlot: 'AFTERNOON', startTime: '15:00', endTime: '17:00', maxSize: 10 },
-    { name: '3D-E1', courseId: courses[4].id, teacherId: teachers[4].id, schedule: 'Du-Cho-Sha 08:00-10:00', weekDays: 'Du,Cho,Sha', timeSlot: 'MORNING', startTime: '08:00', endTime: '10:00', maxSize: 8 },
+    { name: 'Robo-A1', courseId: courses[0].id, teacherId: teachers[0].id, schedule: 'Du-Cho-Sha 08:00-10:00', weekDays: 'Du,Cho,Sha', timeSlot: 'MORNING', startTime: '08:00', endTime: '10:00', maxSize: 12 },
+    { name: 'Python-B1', courseId: courses[1].id, teacherId: teachers[1].id, schedule: 'Se-Pay-Sha 08:00-10:00', weekDays: 'Se,Pay,Sha', timeSlot: 'MORNING', startTime: '08:00', endTime: '10:00', maxSize: 10 },
+    { name: 'TgBot-C1', courseId: courses[2].id, teacherId: teachers[2].id, schedule: 'Du-Cho-Sha 15:00-17:00', weekDays: 'Du,Cho,Sha', timeSlot: 'AFTERNOON', startTime: '15:00', endTime: '17:00', maxSize: 12 },
+    { name: 'AI-D1', courseId: courses[3].id, teacherId: teachers[3].id, schedule: 'Se-Pay-Sha 15:00-17:00', weekDays: 'Se,Pay,Sha', timeSlot: 'AFTERNOON', startTime: '15:00', endTime: '17:00', maxSize: 10 },
+    { name: 'Scratch-E1', courseId: courses[4].id, teacherId: teachers[4].id, schedule: 'Du-Cho-Sha 08:00-10:00', weekDays: 'Du,Cho,Sha', timeSlot: 'MORNING', startTime: '08:00', endTime: '10:00', maxSize: 8 },
   ]) { groups.push(await prisma.group.create({ data: g })); }
   console.log(`✅ ${groups.length} ta guruh (haftada 3 marta, 2 soatdan)`);
 
@@ -75,14 +75,14 @@ async function main() {
 
   // To'lovlar
   for (const p of [
-    { studentId: students[0].id, amount: 400000, paymentMethod: 'CASH', paymentDate: new Date('2026-02-01'), monthFor: '2026-02' },
-    { studentId: students[2].id, amount: 500000, paymentMethod: 'CLICK', paymentDate: new Date('2026-02-01'), monthFor: '2026-02' },
-    { studentId: students[4].id, amount: 500000, paymentMethod: 'PAYME', paymentDate: new Date('2026-02-03'), monthFor: '2026-02' },
-    { studentId: students[6].id, amount: 450000, paymentMethod: 'CASH', paymentDate: new Date('2026-02-05'), monthFor: '2026-02' },
-    { studentId: students[7].id, amount: 450000, paymentMethod: 'CLICK', paymentDate: new Date('2026-02-05'), monthFor: '2026-02' },
-    { studentId: students[9].id, amount: 450000, paymentMethod: 'PAYME', paymentDate: new Date('2026-02-07'), monthFor: '2026-02' },
-    { studentId: students[0].id, amount: 400000, paymentMethod: 'CASH', paymentDate: new Date('2026-03-01'), monthFor: '2026-03' },
-    { studentId: students[2].id, amount: 500000, paymentMethod: 'CLICK', paymentDate: new Date('2026-03-01'), monthFor: '2026-03' },
+    { studentId: students[0].id, amount: 450000, paymentMethod: 'CASH', paymentDate: new Date('2026-02-01'), monthFor: '2026-02' },
+    { studentId: students[2].id, amount: 450000, paymentMethod: 'CLICK', paymentDate: new Date('2026-02-01'), monthFor: '2026-02' },
+    { studentId: students[4].id, amount: 650000, paymentMethod: 'PAYME', paymentDate: new Date('2026-02-03'), monthFor: '2026-02' },
+    { studentId: students[6].id, amount: 1200000, paymentMethod: 'CASH', paymentDate: new Date('2026-02-05'), monthFor: '2026-02' },
+    { studentId: students[7].id, amount: 400000, paymentMethod: 'CLICK', paymentDate: new Date('2026-02-05'), monthFor: '2026-02' },
+    { studentId: students[9].id, amount: 1200000, paymentMethod: 'PAYME', paymentDate: new Date('2026-02-07'), monthFor: '2026-02' },
+    { studentId: students[0].id, amount: 430000, paymentMethod: 'CASH', paymentDate: new Date('2026-03-01'), monthFor: '2026-03' },
+    { studentId: students[2].id, amount: 430000, paymentMethod: 'CLICK', paymentDate: new Date('2026-03-01'), monthFor: '2026-03' },
   ]) { await prisma.payment.create({ data: p }); }
   console.log('✅ 8 ta to\'lov');
 

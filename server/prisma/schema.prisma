@@ -33,11 +33,14 @@ enum AttendanceStatus {
 }
 
 enum AchievementType {
-  PROJECT_DONE
-  HOMEWORK_DONE
+  HOMEWORK
+  PROJECT
+  ACTIVITY
+  PARENT_ACTIVITY
   CONTEST_WIN
   GOOD_BEHAVIOR
   ATTENDANCE_STREAK
+  PENALTY
   OTHER
 }
 
@@ -100,8 +103,9 @@ model Course {
   color       String   @default("#0D9488")
   ageRange    String?  @map("age_range")
   duration    String?
-  price       Int      @default(0)
-  description String?
+  price          Int      @default(0)
+  discountPrice  Int?     @map("discount_price")
+  description    String?
   isActive    Boolean  @default(true) @map("is_active")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")

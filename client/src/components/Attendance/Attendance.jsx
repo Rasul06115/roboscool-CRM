@@ -260,22 +260,37 @@ export default function Attendance() {
 // ==================== BALL BERISH MODAL ====================
 function AchievementModal({ student, onClose, onSaved }) {
   const [form, setForm] = useState({
-    type: 'PROJECT_DONE',
+    type: 'HOMEWORK',
     title: '',
     description: '',
-    points: 10,
+    points: 2,
     sendSms: true,
   });
   const [saving, setSaving] = useState(false);
 
   const types = [
-    { value: 'PROJECT_DONE', label: '🏆 Loyiha topshirdi', defaultPoints: 20 },
-    { value: 'HOMEWORK_DONE', label: '📝 Uy vazifasini bajardi', defaultPoints: 5 },
-    { value: 'CONTEST_WIN', label: '🥇 Musobaqada g\'alaba', defaultPoints: 50 },
-    { value: 'GOOD_BEHAVIOR', label: '⭐ Yaxshi xulq', defaultPoints: 10 },
-    { value: 'ATTENDANCE_STREAK', label: '📅 Muntazam davomat', defaultPoints: 15 },
-    { value: 'OTHER', label: '🎯 Boshqa', defaultPoints: 10 },
+    { value: 'HOMEWORK', label: '📝 Uy vazifa', defaultPoints: 2 },
+    { value: 'PROJECT', label: '🏆 Loyiha ishi', defaultPoints: 3, note: '2-5 ball' },
+    { value: 'ACTIVITY', label: '🙋 Darsda faollik', defaultPoints: 2 },
+    { value: 'PARENT_ACTIVITY', label: '👨‍👩‍👦 Ota-ona aktivligi', defaultPoints: 3 },
+    { value: 'CONTEST_WIN', label: '🥇 Musobaqa g\'alabasi', defaultPoints: 10 },
+    { value: 'GOOD_BEHAVIOR', label: '⭐ Yaxshi xulq', defaultPoints: 2 },
+    { value: 'ATTENDANCE_STREAK', label: '📅 Muntazam davomat', defaultPoints: 5 },
+    { value: 'PENALTY', label: '⛔ Jazo (-3 ball)', defaultPoints: -3 },
+    { value: 'OTHER', label: '🎯 Boshqa', defaultPoints: 1 },
   ];
+
+  // Daraja hisoblash
+  const currentPoints = student.totalPoints || 0;
+  const levels = [
+    { name: 'Beginner', emoji: '🟢', min: 0, max: 50 },
+    { name: 'Junior', emoji: '🔵', min: 51, max: 150 },
+    { name: 'Middle', emoji: '🟡', min: 151, max: 300 },
+    { name: 'Senior', emoji: '🟠', min: 301, max: 500 },
+    { name: 'Master', emoji: '🔴', min: 501, max: Infinity },
+  ];
+  const level = levels.find(l => currentPoints >= l.min && currentPoints <= l.max) || levels[0];
+  const isPenalty = form.type === 'PENALTY';
 
   const ic = "w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:border-teal-500 focus:outline-none";
 
@@ -288,7 +303,8 @@ function AchievementModal({ student, onClose, onSaved }) {
         ...form,
         points: Number(form.points),
       });
-      toast.success(`${student.studentName} ga ${form.points} ball berildi! 🎉`);
+      const emoji = isPenalty ? '⛔' : '🎉';
+      toast.success(`${student.studentName} ga ${form.points} ball ${isPenalty ? 'ayirildi' : 'berildi'}! ${emoji}`);
       onSaved();
       onClose();
     } catch (e) { console.error(e); }
@@ -297,23 +313,47 @@ function AchievementModal({ student, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-md mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center px-6 py-4 border-b">
+      <div className="bg-white rounded-2xl w-full max-w-md mx-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center px-6 py-4 border-b sticky top-0 bg-white z-10">
           <h3 className="text-lg font-bold">🏆 Ball berish</h3>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100">✕</button>
         </div>
         <div className="p-6 space-y-4">
+          {/* O'quvchi info + daraja */}
           <div className="p-3 bg-purple-50 rounded-xl">
-            <p className="font-semibold">{student.studentName}</p>
-            <p className="text-xs text-gray-500">Ota-ona: {student.parentPhone}</p>
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="font-semibold">{student.studentName}</p>
+                <p className="text-xs text-gray-500">📱 {student.parentPhone}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-lg font-bold">{level.emoji} {level.name}</p>
+                <p className="text-xs text-purple-600 font-semibold">⭐ {currentPoints} ball</p>
+              </div>
+            </div>
+            {/* Progress bar */}
+            <div className="mt-2">
+              <div className="flex justify-between text-[10px] text-gray-500 mb-0.5">
+                <span>{level.name} ({level.min})</span>
+                <span>{level.max === Infinity ? '∞' : level.max}</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-1.5">
+                <div className="h-1.5 rounded-full bg-purple-500 transition-all"
+                  style={{ width: `${level.max === Infinity ? 100 : Math.min(100, ((currentPoints - level.min) / (level.max - level.min)) * 100)}%` }} />
+              </div>
+            </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-2">Yutuq turi</label>
-            <div className="grid grid-cols-2 gap-2">
+            <label className="block text-xs font-semibold text-gray-600 mb-2">Yutuq/Jazo turi</label>
+            <div className="grid grid-cols-3 gap-1.5">
               {types.map(t => (
                 <button key={t.value} onClick={() => setForm({ ...form, type: t.value, points: t.defaultPoints })}
-                  className={`p-2 rounded-xl text-xs font-semibold text-left transition-all ${form.type === t.value ? 'bg-purple-100 text-purple-700 border-2 border-purple-300' : 'bg-gray-50 text-gray-600 border-2 border-transparent hover:bg-gray-100'}`}>
+                  className={`p-2 rounded-xl text-[11px] font-semibold text-center transition-all ${
+                    form.type === t.value
+                      ? (t.value === 'PENALTY' ? 'bg-red-100 text-red-700 border-2 border-red-300' : 'bg-purple-100 text-purple-700 border-2 border-purple-300')
+                      : 'bg-gray-50 text-gray-600 border-2 border-transparent hover:bg-gray-100'
+                  }`}>
                   {t.label}
                 </button>
               ))}
@@ -323,14 +363,32 @@ function AchievementModal({ student, onClose, onSaved }) {
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">Sarlavha *</label>
             <input className={ic} value={form.title} onChange={e => setForm({ ...form, title: e.target.value })}
-              placeholder="Masalan: Arduino loyiha — Traffic Light" />
+              placeholder={isPenalty ? "Masalan: Darsda bezorilik" : "Masalan: Arduino loyiha — Traffic Light"} />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">⭐ Ball</label>
-              <input className={ic} type="number" min="1" max="100" value={form.points}
-                onChange={e => setForm({ ...form, points: e.target.value })} />
+              <label className="block text-xs font-semibold text-gray-600 mb-1">
+                {isPenalty ? '⛔ Jazo balli' : '⭐ Ball'}
+              </label>
+              <input className={ic} type="number" min={isPenalty ? -10 : 1} max={isPenalty ? -1 : 50}
+                value={form.points} onChange={e => setForm({ ...form, points: e.target.value })} />
+              <div className="flex gap-1 mt-1">
+                {isPenalty ? (
+                  <>
+                    <button onClick={() => setForm({...form, points: -1})} className="text-[10px] px-1.5 py-0.5 bg-red-50 text-red-700 rounded">-1</button>
+                    <button onClick={() => setForm({...form, points: -3})} className="text-[10px] px-1.5 py-0.5 bg-red-50 text-red-700 rounded font-bold">-3</button>
+                    <button onClick={() => setForm({...form, points: -5})} className="text-[10px] px-1.5 py-0.5 bg-red-50 text-red-700 rounded">-5</button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={() => setForm({...form, points: 2})} className="text-[10px] px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded">2</button>
+                    <button onClick={() => setForm({...form, points: 3})} className="text-[10px] px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded">3</button>
+                    <button onClick={() => setForm({...form, points: 5})} className="text-[10px] px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded">5</button>
+                    <button onClick={() => setForm({...form, points: 10})} className="text-[10px] px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded">10</button>
+                  </>
+                )}
+              </div>
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">Izoh</label>
@@ -342,13 +400,17 @@ function AchievementModal({ student, onClose, onSaved }) {
           <label className="flex items-center gap-2 cursor-pointer p-3 bg-green-50 rounded-xl">
             <input type="checkbox" checked={form.sendSms} onChange={e => setForm({ ...form, sendSms: e.target.checked })}
               className="w-4 h-4 rounded text-teal-600" />
-            <span className="text-sm font-medium text-green-700">📱 Ota-onaga tabrik SMS yuborish</span>
+            <span className="text-sm font-medium text-green-700">
+              {isPenalty ? '📱 Ota-onaga ogohlantirish SMS' : '📱 Ota-onaga tabrik SMS yuborish'}
+            </span>
           </label>
 
           <button onClick={handleSave} disabled={saving}
-            className="w-full py-3 bg-purple-600 text-white rounded-xl text-sm font-semibold hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-2">
+            className={`w-full py-3 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 ${
+              isPenalty ? 'bg-red-600 hover:bg-red-700' : 'bg-purple-600 hover:bg-purple-700'
+            }`}>
             {saving ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" /> : <Star size={16} />}
-            {saving ? 'Saqlanmoqda...' : `${form.points} ball berish`}
+            {saving ? 'Saqlanmoqda...' : isPenalty ? `${form.points} ball ayirish ⛔` : `+${form.points} ball berish ⭐`}
           </button>
         </div>
       </div>

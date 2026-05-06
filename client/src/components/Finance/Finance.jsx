@@ -1,13 +1,22 @@
-import { useState, useEffect ,useMemo} from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, Filter, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Calendar } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { paymentsAPI, groupsAPI, studentsAPI } from '../../utils/api';
+import { paymentsAPI, groupsAPI, studentsAPI, coursesAPI } from '../../utils/api';
 import { formatMoney } from '../../utils/helpers';
+
+// Kursga qarab dinamik narx: 5-sanagacha = discountPrice, keyin = price
+const getDynamicPrice = (course) => {
+  if (!course) return 0;
+  const day = new Date().getDate();
+  const hasDiscount = course.discountPrice && course.discountPrice > 0;
+  return day <= 5 && hasDiscount ? course.discountPrice : course.price;
+};
 
 export default function Finance() {
   const [payments, setPayments] = useState([]);
   const [groups, setGroups] = useState([]);
   const [students, setStudents] = useState([]);
+  const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [filterGroup, setFilterGroup] = useState('');
@@ -18,15 +27,19 @@ export default function Finance() {
 
   const loadData = async () => {
     try {
-      const [p, g, s, st] = await Promise.all([paymentsAPI.getAll(), groupsAPI.getAll(), studentsAPI.getAll(), paymentsAPI.getStats()]);
-      setPayments(p.data); setGroups(g.data); setStudents(s.data); setStats(st.data);
+      const [p, g, s, st, c] = await Promise.all([
+        paymentsAPI.getAll(),
+        groupsAPI.getAll(),
+        studentsAPI.getAll(),
+        paymentsAPI.getStats(),
+        coursesAPI.getAll(),
+      ]);
+      setPayments(p.data);
+      setGroups(g.data);
+      setStudents(s.data);
+      setStats(st.data);
+      setCourses(c.data);
     } catch (e) {} finally { setLoading(false); }
-  };
-
-  // Dinamik narx: 5-sanagacha = 380,000 / keyin = 400,000
-  const getDynamicPrice = () => {
-    const day = new Date().getDate();
-    return day <= 5 ? 380000 : 400000;
   };
 
   const handleDelete = async (id) => {
@@ -46,33 +59,33 @@ export default function Finance() {
   // Oylar ro'yxati
   const months = [...new Set(payments.map(p => p.monthFor).filter(Boolean))].sort().reverse();
 
-  const currentPrice = getDynamicPrice();
   const today = new Date().getDate();
 
   // Oy tanlanmagan bo'lsa — joriy oy
-const selectedMonth = filterMonth || new Date().toISOString().slice(0, 7);
+  const selectedMonth = filterMonth || new Date().toISOString().slice(0, 7);
 
-// Guruhlar kesimida to'laganlar va qarzdorlar
-const groupBreakdown = useMemo(() => {
-  return groups.map(g => {
-    const groupStudents = students.filter(s => s.groupId === g.id && s.status === 'ACTIVE');
-    const paid = [];
-    const debtors = [];
-    groupStudents.forEach(s => {
-      const payment = payments.find(p =>
-        p.studentId === s.id && p.monthFor === selectedMonth
-      );
-      if (payment) {
-        paid.push({ ...s, paymentAmount: payment.amount, paymentDate: payment.paymentDate });
-      } else {
-        debtors.push(s);
-      }
-    });
-    return { group: g, paid, debtors, total: groupStudents.length };
-  }).filter(g => g.total > 0);
-}, [groups, students, payments, selectedMonth]);
-  
-if (loading) return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600" /></div>;
+  // Guruhlar kesimida to'laganlar va qarzdorlar
+  const groupBreakdown = useMemo(() => {
+    return groups.map(g => {
+      const groupStudents = students.filter(s => s.groupId === g.id && s.status === 'ACTIVE');
+      const paid = [];
+      const debtors = [];
+      const coursePrice = getDynamicPrice(g.course);
+      groupStudents.forEach(s => {
+        const payment = payments.find(p =>
+          p.studentId === s.id && p.monthFor === selectedMonth
+        );
+        if (payment) {
+          paid.push({ ...s, paymentAmount: payment.amount, paymentDate: payment.paymentDate });
+        } else {
+          debtors.push(s);
+        }
+      });
+      return { group: g, paid, debtors, total: groupStudents.length, coursePrice };
+    }).filter(g => g.total > 0);
+  }, [groups, students, payments, selectedMonth]);
+
+  if (loading) return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600" /></div>;
 
   return (
     <div className="space-y-5 animate-fadeIn">
@@ -89,11 +102,11 @@ if (loading) return <div className="flex justify-center py-20"><div className="a
           <p className="text-2xl font-extrabold text-blue-600">{formatMoney(stats?.monthlyRevenue || 0)}</p>
         </div>
         <div className="bg-white rounded-2xl border border-gray-200 p-5">
-          <div className="text-2xl mb-2">💵</div>
-          <p className="text-xs text-gray-500">Hozirgi narx</p>
-          <p className="text-2xl font-extrabold text-teal-600">{formatMoney(currentPrice)}</p>
+          <div className="text-2xl mb-2">📊</div>
+          <p className="text-xs text-gray-500">Kurslar soni</p>
+          <p className="text-2xl font-extrabold text-teal-600">{courses.length}</p>
           <p className="text-xs mt-1 text-gray-400">
-            {today <= 5 ? `⏰ 5-sanagacha: 380 000 (${5 - today} kun qoldi)` : `📌 5-sanadan o'tgan: 400 000`}
+            {today <= 5 ? `⏰ Chegirma: ${5 - today} kun qoldi` : `📌 5-sanadan o'tgan`}
           </p>
         </div>
         <div className="bg-white rounded-2xl border border-gray-200 p-5">
@@ -103,14 +116,29 @@ if (loading) return <div className="flex justify-center py-20"><div className="a
         </div>
       </div>
 
-      {/* Narx info banner */}
+      {/* Kurs narxlari jadvali */}
       <div className={`p-4 rounded-2xl border ${today <= 5 ? 'bg-green-50 border-green-200' : 'bg-orange-50 border-orange-200'}`}>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 mb-3">
           <Calendar size={20} className={today <= 5 ? 'text-green-600' : 'text-orange-600'} />
-          <div>
-            <p className="text-sm font-bold">{today <= 5 ? "🟢 Chegirmali muddat (5-sanagacha)" : "🟠 Chegirma muddati o'tgan"}</p>
-            <p className="text-xs text-gray-600">5-sanagacha: <b>380 000 so'm</b> | 5-sanadan keyin: <b>400 000 so'm</b></p>
-          </div>
+          <p className="text-sm font-bold">
+            {today <= 5 ? "🟢 Chegirmali muddat (5-sanagacha)" : "🟠 Chegirma muddati o'tgan"}
+          </p>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+          {courses.map(c => {
+            const currentPrice = getDynamicPrice(c);
+            const isDiscounted = today <= 5 && c.discountPrice && c.discountPrice > 0;
+            return (
+              <div key={c.id} className="bg-white/80 rounded-xl p-3 text-center border border-white/50">
+                <span className="text-lg">{c.icon}</span>
+                <p className="text-xs font-bold mt-1" style={{ color: c.color }}>{c.name}</p>
+                <p className="text-sm font-extrabold mt-1">{formatMoney(currentPrice)}</p>
+                {isDiscounted && (
+                  <p className="text-[10px] text-gray-400 line-through">{formatMoney(c.price)}</p>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -184,154 +212,251 @@ if (loading) return <div className="flex justify-center py-20"><div className="a
         {filtered.length === 0 && <p className="text-center text-gray-400 py-10">To'lov topilmadi</p>}
       </div>
 
-      {/* Qarzdorlar */}
       {/* Guruhlar kesimida oy bo'yicha to'lov holati */}
-<div className="bg-white rounded-2xl border border-gray-200 p-5">
-  <div className="flex justify-between items-center mb-4">
-    <h3 className="font-bold flex items-center gap-2">
-      <Calendar size={18} className="text-teal-600" />
-      Guruhlar kesimida — {selectedMonth}
-    </h3>
-    <input type="month" value={selectedMonth}
-      onChange={e => setFilterMonth(e.target.value)}
-      className="px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:border-teal-500 focus:outline-none" />
-  </div>
-  {groupBreakdown.length === 0 ? (
-    <p className="text-center text-gray-400 py-10">Guruh topilmadi</p>
-  ) : (
-    <div className="space-y-4">
-      {groupBreakdown.map(({ group, paid, debtors, total }) => {
-        const pct = total > 0 ? Math.round((paid.length / total) * 100) : 0;
-        const c = group.course;
-        return (
-          <div key={group.id} className="border border-gray-200 rounded-2xl overflow-hidden">
-            <div className="flex justify-between items-center px-4 py-3" style={{ background: `${c?.color}10` }}>
-              <div className="flex items-center gap-2">
-                <span className="text-xl">{c?.icon}</span>
-                <div>
-                  <p className="font-bold text-sm" style={{ color: c?.color }}>{group.name}</p>
-                  <p className="text-xs text-gray-500">{total} o'quvchi • {paid.length} to'lagan • {debtors.length} qarzdor</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-lg font-extrabold" style={{ color: c?.color }}>{pct}%</p>
-                <div className="w-24 bg-gray-200 rounded-full h-1.5 mt-1">
-                  <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, background: c?.color }} />
-                </div>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-100">
-              <div className="p-4">
-                <h4 className="text-xs font-bold text-green-600 mb-2">✅ To'laganlar ({paid.length})</h4>
-                {paid.length === 0 ? (
-                  <p className="text-xs text-gray-400 py-2">Hech kim to'lamagan</p>
-                ) : (
-                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                    {paid.map(s => (
-                      <div key={s.id} className="flex justify-between items-center p-2 bg-green-50/50 rounded-lg">
-                        <span className="text-sm font-medium text-gray-700">{s.fullName}</span>
-                        <span className="text-xs font-bold text-green-600">+{formatMoney(s.paymentAmount)}</span>
+      <div className="bg-white rounded-2xl border border-gray-200 p-5">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-bold flex items-center gap-2">
+            <Calendar size={18} className="text-teal-600" />
+            Guruhlar kesimida — {selectedMonth}
+          </h3>
+          <input type="month" value={selectedMonth}
+            onChange={e => setFilterMonth(e.target.value)}
+            className="px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:border-teal-500 focus:outline-none" />
+        </div>
+        {groupBreakdown.length === 0 ? (
+          <p className="text-center text-gray-400 py-10">Guruh topilmadi</p>
+        ) : (
+          <div className="space-y-4">
+            {groupBreakdown.map(({ group, paid, debtors, total, coursePrice }) => {
+              const pct = total > 0 ? Math.round((paid.length / total) * 100) : 0;
+              const c = group.course;
+              return (
+                <div key={group.id} className="border border-gray-200 rounded-2xl overflow-hidden">
+                  <div className="flex justify-between items-center px-4 py-3" style={{ background: `${c?.color}10` }}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">{c?.icon}</span>
+                      <div>
+                        <p className="font-bold text-sm" style={{ color: c?.color }}>{group.name}</p>
+                        <p className="text-xs text-gray-500">
+                          {total} o'quvchi • {paid.length} to'lagan • {debtors.length} qarzdor
+                          {c?.price ? ` • ${formatMoney(coursePrice)} so'm` : ''}
+                        </p>
                       </div>
-                    ))}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-extrabold" style={{ color: c?.color }}>{pct}%</p>
+                      <div className="w-24 bg-gray-200 rounded-full h-1.5 mt-1">
+                        <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, background: c?.color }} />
+                      </div>
+                    </div>
                   </div>
-                )}
-              </div>
-              <div className="p-4">
-                <h4 className="text-xs font-bold text-red-600 mb-2">❌ Qarzdorlar ({debtors.length})</h4>
-                {debtors.length === 0 ? (
-                  <p className="text-xs text-green-600 py-2 font-semibold">🎉 Hammasi to'lagan!</p>
-                ) : (
-                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                    {debtors.map(s => (
-                      <div key={s.id} className="flex justify-between items-center p-2 bg-red-50/50 rounded-lg">
-                        <div>
-                          <p className="text-sm font-medium text-gray-700">{s.fullName}</p>
-                          {s.parentPhone && <p className="text-[10px] text-gray-400 font-mono">{s.parentPhone}</p>}
+                  <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-100">
+                    <div className="p-4">
+                      <h4 className="text-xs font-bold text-green-600 mb-2">✅ To'laganlar ({paid.length})</h4>
+                      {paid.length === 0 ? (
+                        <p className="text-xs text-gray-400 py-2">Hech kim to'lamagan</p>
+                      ) : (
+                        <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                          {paid.map(s => (
+                            <div key={s.id} className="flex justify-between items-center p-2 bg-green-50/50 rounded-lg">
+                              <span className="text-sm font-medium text-gray-700">{s.fullName}</span>
+                              <span className="text-xs font-bold text-green-600">+{formatMoney(s.paymentAmount)}</span>
+                            </div>
+                          ))}
                         </div>
-                        <span className="text-xs font-bold text-red-600">-400 000</span>
-                      </div>
-                    ))}
+                      )}
+                    </div>
+                    <div className="p-4">
+                      <h4 className="text-xs font-bold text-red-600 mb-2">❌ Qarzdorlar ({debtors.length})</h4>
+                      {debtors.length === 0 ? (
+                        <p className="text-xs text-green-600 py-2 font-semibold">🎉 Hammasi to'lagan!</p>
+                      ) : (
+                        <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                          {debtors.map(s => (
+                            <div key={s.id} className="flex justify-between items-center p-2 bg-red-50/50 rounded-lg">
+                              <div>
+                                <p className="text-sm font-medium text-gray-700">{s.fullName}</p>
+                                {s.parentPhone && <p className="text-[10px] text-gray-400 font-mono">{s.parentPhone}</p>}
+                              </div>
+                              <span className="text-xs font-bold text-red-600">-{formatMoney(coursePrice)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
-              </div>
-            </div>
+                </div>
+              );
+            })}
           </div>
-        );
-      })}
-    </div>
-  )}
-</div>
+        )}
+      </div>
 
-      {showModal && <PaymentModal groups={groups} students={students} currentPrice={currentPrice} onSave={async (form) => {
-        try { await paymentsAPI.create(form); toast.success("To'lov qabul qilindi!"); setShowModal(false); loadData(); } catch (e) {}
-      }} onClose={() => setShowModal(false)} />}
+      {showModal && <PaymentModal
+        groups={groups}
+        students={students}
+        courses={courses}
+        onSave={async (form) => {
+          try {
+            await paymentsAPI.create(form);
+            toast.success("To'lov qabul qilindi!");
+            setShowModal(false);
+            loadData();
+          } catch (e) {}
+        }}
+        onClose={() => setShowModal(false)}
+      />}
     </div>
   );
 }
 
 // ==================== TO'LOV MODAL ====================
-function PaymentModal({ groups, students, currentPrice, onSave, onClose }) {
+function PaymentModal({ groups, students, courses, onSave, onClose }) {
+  const [filterGroup, setFilterGroup] = useState('');
   const [form, setForm] = useState({
-    studentId: '', amount: currentPrice, paymentMethod: 'CASH',
+    studentId: '', amount: '', paymentMethod: 'CASH',
     monthFor: new Date().toISOString().slice(0, 7), note: '',
   });
-  const [filterGroup, setFilterGroup] = useState('');
-  const ic = "w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:border-teal-500 focus:outline-none";
 
+  const ic = "w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:border-teal-500 focus:outline-none";
   const filteredStudents = filterGroup ? students.filter(s => s.groupId === filterGroup) : students;
   const today = new Date().getDate();
 
+  // Tanlangan o'quvchining kursi va narxi
+  const selectedStudent = students.find(s => s.id === form.studentId);
+  const selectedGroup = selectedStudent ? groups.find(g => g.id === selectedStudent.groupId) : null;
+  const selectedCourse = selectedGroup?.course || null;
+  const coursePrice = selectedCourse ? getDynamicPrice(selectedCourse) : 0;
+
+  // O'quvchi tanlanganda narxni avtomatik yangilash
+  const handleStudentChange = (studentId) => {
+    const student = students.find(s => s.id === studentId);
+    const group = student ? groups.find(g => g.id === student.groupId) : null;
+    const course = group?.course || null;
+    const price = course ? getDynamicPrice(course) : '';
+    setForm({ ...form, studentId, amount: price });
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-md mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center px-6 py-4 border-b">
-          <h3 className="text-lg font-bold">💰 To'lov qabul qilish</h3><button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100">✕</button>
+      <div className="bg-white rounded-2xl w-full max-w-md mx-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center px-6 py-4 border-b sticky top-0 bg-white z-10">
+          <h3 className="text-lg font-bold">💰 To'lov qabul qilish</h3>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100">✕</button>
         </div>
         <div className="p-6 space-y-4">
-          {/* Narx info */}
+          {/* Kurs narxlari info */}
           <div className={`p-3 rounded-xl text-sm ${today <= 5 ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'}`}>
-            <p className="font-bold">{today <= 5 ? '🟢 Chegirmali narx: 380 000 so\'m' : '🟠 Oddiy narx: 400 000 so\'m'}</p>
-            <p className="text-xs mt-1">5-sanagacha: 380 000 | 5-sanadan keyin: 400 000</p>
+            <p className="font-bold mb-1">{today <= 5 ? "🟢 Chegirmali muddat (5-sanagacha)" : "🟠 Oddiy narx (5-sanadan o'tgan)"}</p>
+            <div className="text-xs space-y-0.5">
+              {courses.map(c => (
+                <div key={c.id} className="flex justify-between">
+                  <span>{c.icon} {c.name}</span>
+                  <span className="font-bold">
+                    {formatMoney(getDynamicPrice(c))}
+                    {today <= 5 && c.discountPrice ? <span className="text-gray-400 line-through ml-1">{formatMoney(c.price)}</span> : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Guruh filtr */}
-          <div><label className="block text-xs font-semibold text-gray-600 mb-1">Guruh tanlang</label>
-            <select className={ic} value={filterGroup} onChange={e => { setFilterGroup(e.target.value); setForm({...form, studentId: ''}); }}>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Guruh tanlang</label>
+            <select className={ic} value={filterGroup} onChange={e => {
+              setFilterGroup(e.target.value);
+              setForm({ ...form, studentId: '', amount: '' });
+            }}>
               <option value="">Barcha guruhlar</option>
-              {groups.map(g => <option key={g.id} value={g.id}>{g.course?.icon} {g.name}</option>)}
-            </select></div>
+              {groups.map(g => (
+                <option key={g.id} value={g.id}>
+                  {g.course?.icon} {g.name} — {formatMoney(getDynamicPrice(g.course))}
+                </option>
+              ))}
+            </select>
+          </div>
 
-          <div><label className="block text-xs font-semibold text-gray-600 mb-1">O'quvchi *</label>
-            <select className={ic} value={form.studentId} onChange={e => setForm({...form, studentId: e.target.value})}>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">O'quvchi *</label>
+            <select className={ic} value={form.studentId} onChange={e => handleStudentChange(e.target.value)}>
               <option value="">Tanlang</option>
-              {filteredStudents.filter(s => s.status === 'ACTIVE').map(s => <option key={s.id} value={s.id}>{s.fullName} {s.group ? `(${s.group.name})` : ''}</option>)}
-            </select></div>
+              {filteredStudents.filter(s => s.status === 'ACTIVE').map(s => (
+                <option key={s.id} value={s.id}>{s.fullName} {s.group ? `(${s.group.name})` : ''}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Tanlangan kurs narxi ko'rsatiladi */}
+          {selectedCourse && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: `${selectedCourse.color}10`, color: selectedCourse.color }}>
+              <span className="text-base">{selectedCourse.icon}</span>
+              <span>{selectedCourse.name} — {formatMoney(coursePrice)} so'm</span>
+              {today <= 5 && selectedCourse.discountPrice && selectedCourse.discountPrice !== selectedCourse.price && (
+                <span className="text-gray-400 line-through ml-1">{formatMoney(selectedCourse.price)}</span>
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
-            <div><label className="block text-xs font-semibold text-gray-600 mb-1">Summa *</label>
-              <input className={ic} type="number" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} />
-              <div className="flex gap-1 mt-1">
-                <button onClick={() => setForm({...form, amount: 380000})} className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded-lg hover:bg-green-100">380 000</button>
-                <button onClick={() => setForm({...form, amount: 400000})} className="text-xs px-2 py-1 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100">400 000</button>
-              </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Summa *</label>
+              <input className={ic} type="number" value={form.amount}
+                onChange={e => setForm({ ...form, amount: e.target.value })}
+                placeholder={coursePrice ? String(coursePrice) : "Summa"} />
+              {selectedCourse && (
+                <div className="flex gap-1 mt-1 flex-wrap">
+                  {selectedCourse.discountPrice && selectedCourse.discountPrice !== selectedCourse.price && (
+                    <button onClick={() => setForm({ ...form, amount: selectedCourse.discountPrice })}
+                      className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded-lg hover:bg-green-100">
+                      {formatMoney(selectedCourse.discountPrice)}
+                    </button>
+                  )}
+                  <button onClick={() => setForm({ ...form, amount: selectedCourse.price })}
+                    className="text-xs px-2 py-1 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100">
+                    {formatMoney(selectedCourse.price)}
+                  </button>
+                </div>
+              )}
+              {!selectedCourse && (
+                <p className="text-[10px] text-gray-400 mt-1">O'quvchi tanlanganda narx avtomatik to'ldiriladi</p>
+              )}
             </div>
-            <div><label className="block text-xs font-semibold text-gray-600 mb-1">To'lov turi</label>
-              <select className={ic} value={form.paymentMethod} onChange={e => setForm({...form, paymentMethod: e.target.value})}>
-                <option value="CASH">💵 Naqd</option><option value="CLICK">📱 Click</option><option value="PAYME">📱 Payme</option><option value="BANK_TRANSFER">🏦 Bank</option>
-              </select></div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">To'lov turi</label>
+              <select className={ic} value={form.paymentMethod} onChange={e => setForm({ ...form, paymentMethod: e.target.value })}>
+                <option value="CASH">💵 Naqd</option>
+                <option value="CLICK">📱 Click</option>
+                <option value="PAYME">📱 Payme</option>
+                <option value="BANK_TRANSFER">🏦 Bank</option>
+              </select>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div><label className="block text-xs font-semibold text-gray-600 mb-1">Qaysi oy uchun</label>
-              <input className={ic} type="month" value={form.monthFor} onChange={e => setForm({...form, monthFor: e.target.value})} /></div>
-            <div><label className="block text-xs font-semibold text-gray-600 mb-1">Izoh</label>
-              <input className={ic} value={form.note} onChange={e => setForm({...form, note: e.target.value})} placeholder="Qo'shimcha" /></div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Qaysi oy uchun</label>
+              <input className={ic} type="month" value={form.monthFor}
+                onChange={e => setForm({ ...form, monthFor: e.target.value })} />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Izoh</label>
+              <input className={ic} value={form.note}
+                onChange={e => setForm({ ...form, note: e.target.value })} placeholder="Qo'shimcha" />
+            </div>
           </div>
 
           <div className="flex justify-end gap-3">
-            <button onClick={onClose} className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold">Bekor</button>
-            <button onClick={() => { if (!form.studentId) { toast.error("O'quvchi tanlang!"); return; } onSave({ ...form, amount: Number(form.amount) }); }}
-              className="px-5 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700">Qabul qilish</button>
+            <button onClick={onClose}
+              className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold">Bekor</button>
+            <button onClick={() => {
+              if (!form.studentId) { toast.error("O'quvchi tanlang!"); return; }
+              if (!form.amount || Number(form.amount) <= 0) { toast.error("Summani kiriting!"); return; }
+              onSave({ ...form, amount: Number(form.amount) });
+            }}
+              className="px-5 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700">
+              Qabul qilish
+            </button>
           </div>
         </div>
       </div>

@@ -20,11 +20,12 @@ const initBot = () => {
       bot.sendMessage(chatId,
         `🤖 *RoboSchool CRM Bot*\n\n` +
         `Xush kelibsiz! Sizning chat ID: \`${chatId}\`\n\n` +
-        `Buyruqlar:\n` +
-        `/start — Boshlash\n` +
+        `*Admin buyruqlari:*\n` +
         `/stats — Statistika\n` +
-        `/debtors — Qarzdorlar\n` +
-        `/help — Yordam`,
+        `/debtors — Qarzdorlar\n\n` +
+        `*Ota-onalar uchun:*\n` +
+        `Farzandingiz to'liq ismini yozing — natijalar qaytariladi.\n` +
+        `Masalan: *Aziz Karimov*`,
         { parse_mode: 'Markdown' }
       );
     });
@@ -84,6 +85,87 @@ const initBot = () => {
     });
 
     logger.info('✅ Telegram bot ishga tushdi');
+
+    // Ota-ona — farzand ismini yozganda natijalarni qaytarish
+    bot.on('message', async (msg) => {
+      const chatId = msg.chat.id;
+      const text = msg.text?.trim();
+
+      // Buyruqlarni o'tkazib yuborish
+      if (!text || text.startsWith('/')) return;
+
+      try {
+        // Ism bo'yicha o'quvchini qidirish
+        const students = await prisma.student.findMany({
+          where: {
+            fullName: { contains: text, mode: 'insensitive' },
+            status: 'ACTIVE',
+          },
+          include: {
+            group: { include: { course: true } },
+            achievements: { orderBy: { createdAt: 'desc' }, take: 5 },
+          },
+        });
+
+        if (students.length === 0) {
+          bot.sendMessage(chatId,
+            `❌ "${text}" ismli o'quvchi topilmadi.\n\nIltimos, to'liq ismni yozing (masalan: *Aziz Karimov*)`,
+            { parse_mode: 'Markdown' }
+          );
+          return;
+        }
+
+        for (const student of students) {
+          const totalPoints = student.totalPoints || 0;
+
+          // Daraja hisoblash
+          const levels = [
+            { name: 'Beginner', emoji: '🟢', min: 0, max: 50 },
+            { name: 'Junior', emoji: '🔵', min: 51, max: 150 },
+            { name: 'Middle', emoji: '🟡', min: 151, max: 300 },
+            { name: 'Senior', emoji: '🟠', min: 301, max: 500 },
+            { name: 'Master', emoji: '🔴', min: 501, max: Infinity },
+          ];
+          const level = levels.find(l => totalPoints >= l.min && totalPoints <= l.max) || levels[0];
+
+          // Davomat statistikasi
+          const attendanceRecords = await prisma.attendance.findMany({
+            where: { studentId: student.id },
+            take: 30,
+            orderBy: { date: 'desc' },
+          });
+          const totalAtt = attendanceRecords.length;
+          const presentAtt = attendanceRecords.filter(a => a.status === 'PRESENT').length;
+          const attRate = totalAtt > 0 ? Math.round((presentAtt / totalAtt) * 100) : 0;
+
+          // So'nggi yutuqlar
+          let achievementText = '';
+          if (student.achievements.length > 0) {
+            achievementText = '\n📋 *So\'nggi yutuqlar:*\n';
+            student.achievements.forEach(a => {
+              const sign = a.points >= 0 ? '+' : '';
+              achievementText += `  ${sign}${a.points} ⭐ ${a.title}\n`;
+            });
+          }
+
+          const message =
+            `👤 *${student.fullName}*\n\n` +
+            `${level.emoji} Daraja: *${level.name}*\n` +
+            `⭐ Umumiy ball: *${totalPoints}*\n` +
+            `📚 Kurs: *${student.group?.course?.name || '—'}*\n` +
+            `👥 Guruh: *${student.group?.name || '—'}*\n` +
+            `📊 Davomat: *${attRate}%* (${presentAtt}/${totalAtt})\n` +
+            `📈 O'zlashtirish: *${student.progress}%*\n` +
+            achievementText;
+
+          bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+        }
+      } catch (err) {
+        logger.error('Parent lookup error:', err);
+        bot.sendMessage(chatId, '❌ Xatolik yuz berdi. Qaytadan urinib ko\'ring.');
+      }
+    });
+
     return bot;
   } catch (err) {
     logger.error('❌ Telegram bot xatosi:', err);
