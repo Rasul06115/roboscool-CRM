@@ -1,6 +1,6 @@
 import { Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
 import { useState } from 'react';
-import { LayoutDashboard, Users, BookOpen, DollarSign, Phone, BarChart3, Menu, X, Bot, LogOut, User, ClipboardCheck, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, Users, BookOpen, DollarSign, Phone, BarChart3, Menu, X, Bot, LogOut, User, ClipboardCheck, MessageSquare, Star } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
 
 import Login from './components/Auth/Login';
@@ -12,11 +12,13 @@ import Leads from './components/Leads/Leads';
 import Reports from './components/Reports/Reports';
 import Attendance from './components/Attendance/Attendance';
 import SmsCenter from './components/SmsCenter/SmsCenter';
+import Evaluation from './components/Evaluation/Evaluation';
 
 const navItems = [
   { path: '/', label: 'Boshqaruv', icon: LayoutDashboard },
   { path: '/students', label: "O'quvchilar", icon: Users },
   { path: '/attendance', label: 'Davomat', icon: ClipboardCheck },
+  { path: '/evaluation', label: 'Baholash', icon: Star },
   { path: '/courses', label: 'Kurslar', icon: BookOpen },
   { path: '/finance', label: 'Moliya', icon: DollarSign },
   { path: '/sms', label: 'SMS Markaz', icon: MessageSquare },
@@ -89,6 +91,7 @@ export default function App() {
             <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/students" element={<ProtectedRoute><Students /></ProtectedRoute>} />
             <Route path="/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
+            <Route path="/evaluation" element={<ProtectedRoute><Evaluation /></ProtectedRoute>} />
             <Route path="/courses" element={<ProtectedRoute><Courses /></ProtectedRoute>} />
             <Route path="/finance" element={<ProtectedRoute><Finance /></ProtectedRoute>} />
             <Route path="/sms" element={<ProtectedRoute><SmsCenter /></ProtectedRoute>} />
