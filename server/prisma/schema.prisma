@@ -213,7 +213,7 @@ model Attendance {
 model Achievement {
   id          String          @id @default(uuid())
   studentId   String          @map("student_id")
-  type        AchievementType @default(PROJECT_DONE)
+  type        AchievementType @default(PROJECT) 
   title       String
   description String?
   points      Int             @default(0)
