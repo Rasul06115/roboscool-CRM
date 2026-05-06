@@ -48,8 +48,15 @@ exports.getById = async (req, res, next) => {
 
 exports.create = async (req, res, next) => {
   try {
+    const allowed = ['fullName', 'age', 'metrikaNumber', 'fatherName', 'fatherPhone',
+      'motherName', 'motherPhone', 'parentPhone', 'address', 'groupId', 'balance',
+      'progress', 'totalPoints', 'status', 'notes'];
+    const data = {};
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) data[key] = req.body[key];
+    }
     const student = await prisma.student.create({
-      data: req.body,
+      data,
       include: { group: { include: { course: true } } },
     });
     res.status(201).json({ success: true, data: student });
@@ -58,9 +65,17 @@ exports.create = async (req, res, next) => {
 
 exports.update = async (req, res, next) => {
   try {
+    // Faqat ruxsat etilgan maydonlarni olish
+    const allowed = ['fullName', 'age', 'metrikaNumber', 'fatherName', 'fatherPhone',
+      'motherName', 'motherPhone', 'parentPhone', 'address', 'groupId', 'balance',
+      'progress', 'totalPoints', 'status', 'notes'];
+    const data = {};
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) data[key] = req.body[key];
+    }
     const student = await prisma.student.update({
       where: { id: req.params.id },
-      data: req.body,
+      data,
       include: { group: { include: { course: true } } },
     });
     res.json({ success: true, data: student });

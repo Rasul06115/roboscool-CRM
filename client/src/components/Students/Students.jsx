@@ -203,7 +203,11 @@ function StudentFormModal({ student, groups, onSave, onClose }) {
           <div><label className="block text-xs font-semibold text-gray-600 mb-1">📝 Izoh</label><textarea className={`${ic} min-h-[60px]`} value={f.notes} onChange={e => setF({...f, notes: e.target.value})} /></div>
           <div className="flex justify-end gap-3">
             <button onClick={onClose} className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold">Bekor</button>
-            <button onClick={() => { if (!f.fullName || !f.parentPhone) { toast.error("Ism va telefon kerak!"); return; } onSave({ ...f, age: f.age ? Number(f.age) : null, balance: Number(f.balance), progress: Number(f.progress), totalPoints: Number(f.totalPoints), groupId: f.groupId || null }); }}
+            <button onClick={() => {
+              if (!f.fullName || !f.parentPhone) { toast.error("Ism va telefon kerak!"); return; }
+              const { firstName, lastName, ...rest } = f;
+              onSave({ ...rest, age: f.age ? Number(f.age) : null, balance: Number(f.balance), progress: Number(f.progress), totalPoints: Number(f.totalPoints), groupId: f.groupId || null });
+            }}
               className="px-5 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700">{student ? 'Saqlash' : "Qo'shish"}</button>
           </div>
         </div>
