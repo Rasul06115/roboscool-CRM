@@ -5,12 +5,13 @@
   "main": "src/app.js",
   "scripts": {
     "start": "node src/app.js",
+    "build": "npx prisma generate",
     "dev": "nodemon src/app.js",
     "db:migrate": "npx prisma migrate dev",
     "db:seed": "npx prisma db seed",
     "db:studio": "npx prisma studio",
     "db:reset": "npx prisma migrate reset"
-  },
+},
   "prisma": {
     "seed": "node prisma/seed.js"
   },
