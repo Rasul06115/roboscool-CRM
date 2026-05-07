@@ -19,15 +19,36 @@ const initBot = () => {
 
     const isAdmin = (chatId) => String(chatId) === String(ADMIN_CHAT_ID);
 
-    bot.onText(/\/start/, (msg) => {
+    // Foydalanuvchini saqlash
+    const saveUser = async (msg) => {
+      try {
+        await prisma.botUser.upsert({
+          where: { chatId: String(msg.chat.id) },
+          update: { username: msg.from?.username, firstName: msg.from?.first_name },
+          create: {
+            chatId: String(msg.chat.id),
+            username: msg.from?.username,
+            firstName: msg.from?.first_name,
+            isAdmin: isAdmin(msg.chat.id),
+          },
+        });
+      } catch (e) { /* ignore */ }
+    };
+
+    bot.onText(/\/start/, async (msg) => {
       const chatId = msg.chat.id;
+      await saveUser(msg);
+
       if (isAdmin(chatId)) {
+        const userCount = await prisma.botUser.count().catch(() => 0);
         bot.sendMessage(chatId,
           `🤖 *RoboSchool CRM Bot (Admin)*\n\n` +
-          `Sizning chat ID: \`${chatId}\`\n\n` +
+          `👥 Jami bot foydalanuvchilari: *${userCount}*\n\n` +
           `*Admin buyruqlari:*\n` +
           `/stats — Statistika\n` +
-          `/debtors — Qarzdorlar\n\n` +
+          `/debtors — Qarzdorlar\n` +
+          `/users — Foydalanuvchilar soni\n` +
+          `/reklama — Ommaviy xabar yuborish\n\n` +
           `*Ota-onalar uchun:*\n` +
           `O'quvchi ismini yozing — natijalar qaytariladi.`,
           { parse_mode: 'Markdown' }
@@ -41,6 +62,52 @@ const initBot = () => {
           `Masalan: *Aziz Karimov*`,
           { parse_mode: 'Markdown' }
         );
+      }
+    });
+
+    // Admin: Foydalanuvchilar soni
+    bot.onText(/\/users/, async (msg) => {
+      if (!isAdmin(msg.chat.id)) {
+        return bot.sendMessage(msg.chat.id, '⛔ Bu buyruq faqat admin uchun.');
+      }
+      try {
+        const total = await prisma.botUser.count();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayCount = await prisma.botUser.count({ where: { createdAt: { gte: today } } });
+
+        bot.sendMessage(msg.chat.id,
+          `👥 *Bot foydalanuvchilari*\n\n` +
+          `📊 Jami: *${total}* ta\n` +
+          `🆕 Bugun qo'shilgan: *${todayCount}* ta`,
+          { parse_mode: 'Markdown' }
+        );
+      } catch (err) {
+        bot.sendMessage(msg.chat.id, '❌ Xatolik yuz berdi.');
+      }
+    });
+
+    // Admin: Reklama/Ommaviy xabar yuborish
+    let waitingForBroadcast = false;
+
+    bot.onText(/\/reklama/, async (msg) => {
+      if (!isAdmin(msg.chat.id)) {
+        return bot.sendMessage(msg.chat.id, '⛔ Bu buyruq faqat admin uchun.');
+      }
+      const total = await prisma.botUser.count().catch(() => 0);
+      waitingForBroadcast = true;
+      bot.sendMessage(msg.chat.id,
+        `📢 *Ommaviy xabar yuborish*\n\n` +
+        `👥 ${total} ta foydalanuvchiga yuboriladi.\n\n` +
+        `Xabar matnini yozing (yoki /bekor qiling):`,
+        { parse_mode: 'Markdown' }
+      );
+    });
+
+    bot.onText(/\/bekor/, (msg) => {
+      if (isAdmin(msg.chat.id) && waitingForBroadcast) {
+        waitingForBroadcast = false;
+        bot.sendMessage(msg.chat.id, '❌ Reklama bekor qilindi.');
       }
     });
 
@@ -113,6 +180,37 @@ const initBot = () => {
 
       // Buyruqlarni o'tkazib yuborish
       if (!text || text.startsWith('/')) return;
+
+      // Foydalanuvchini saqlash (har qanday xabar yozganda)
+      await saveUser(msg);
+
+      // Admin reklama yuborish rejimi
+      if (isAdmin(chatId) && waitingForBroadcast) {
+        waitingForBroadcast = false;
+
+        const users = await prisma.botUser.findMany();
+        let sent = 0, failed = 0;
+
+        bot.sendMessage(chatId, `📤 *Yuborilmoqda...* ${users.length} ta foydalanuvchiga`, { parse_mode: 'Markdown' });
+
+        for (const user of users) {
+          try {
+            await bot.sendMessage(user.chatId, text, { parse_mode: 'Markdown' });
+            sent++;
+          } catch (e) { failed++; }
+          // Telegram limit uchun kichik kutish
+          await new Promise(r => setTimeout(r, 50));
+        }
+
+        bot.sendMessage(chatId,
+          `✅ *Reklama yuborildi!*\n\n` +
+          `📨 Yuborildi: *${sent}*\n` +
+          `❌ Xatolik: *${failed}*\n` +
+          `👥 Jami: *${users.length}*`,
+          { parse_mode: 'Markdown' }
+        );
+        return;
+      }
 
       try {
         // Ismni so'zlarga ajratib, har biri bo'yicha qidirish
@@ -303,4 +401,3 @@ module.exports = {
   notifyNewLead,
   sendDebtReminder,
 };
-

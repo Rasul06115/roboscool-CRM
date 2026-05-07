@@ -275,6 +275,17 @@ model Payment {
   @@map("payments")
 }
 
+model BotUser {
+  id        String   @id @default(uuid())
+  chatId    String   @unique @map("chat_id")
+  username  String?
+  firstName String?  @map("first_name")
+  isAdmin   Boolean  @default(false) @map("is_admin")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("bot_users")
+}
+
 model Lead {
   id         String     @id @default(uuid())
   fullName   String     @map("full_name")
