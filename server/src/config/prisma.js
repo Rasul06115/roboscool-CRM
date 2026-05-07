@@ -22,5 +22,4 @@ setInterval(async () => {
   }
 }, KEEP_ALIVE_INTERVAL);
 
-module.exports = prisma; 
-
+module.exports = prisma;

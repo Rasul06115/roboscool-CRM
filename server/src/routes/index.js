@@ -113,6 +113,7 @@ router.get('/attendance/student/:studentId', attCtrl.getStudentAttendance);
 router.post('/achievements', attCtrl.addAchievement);
 router.get('/achievements/student/:studentId', attCtrl.getStudentAchievements);
 router.get('/achievements/leaderboard', attCtrl.getLeaderboard);
+router.get('/achievements/nominations', attCtrl.getNominations);
 
 // Evaluations (Baholash)
 router.post('/evaluations', evalCtrl.upsertEvaluation);

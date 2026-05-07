@@ -104,6 +104,7 @@ export const achievementsAPI = {
   add: (data) => api.post('/achievements', data),
   getByStudent: (id) => api.get(`/achievements/student/${id}`),
   getLeaderboard: () => api.get('/achievements/leaderboard'),
+  getNominations: () => api.get('/achievements/nominations'),
 };
 
 export const evaluationsAPI = {

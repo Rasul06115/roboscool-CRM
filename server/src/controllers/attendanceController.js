@@ -310,6 +310,99 @@ exports.getLeaderboard = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+// Oyning va Yilning eng yaxshi o'quvchilari (Nominatsiyalar)
+exports.getNominations = async (req, res, next) => {
+  try {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const yearStart = new Date(now.getFullYear(), 0, 1);
+
+    const levels = [
+      { name: 'Beginner', emoji: '🟢', min: 0, max: 50 },
+      { name: 'Junior', emoji: '🔵', min: 51, max: 150 },
+      { name: 'Middle', emoji: '🟡', min: 151, max: 300 },
+      { name: 'Senior', emoji: '🟠', min: 301, max: 500 },
+      { name: 'Master', emoji: '🔴', min: 501, max: Infinity },
+    ];
+
+    // Oylik ball bo'yicha TOP 10
+    const monthlyAchievements = await prisma.achievement.groupBy({
+      by: ['studentId'],
+      where: { createdAt: { gte: monthStart }, points: { gt: 0 } },
+      _sum: { points: true },
+      orderBy: { _sum: { points: 'desc' } },
+      take: 10,
+    });
+
+    const monthlyStudentIds = monthlyAchievements.map(a => a.studentId);
+    const monthlyStudents = await prisma.student.findMany({
+      where: { id: { in: monthlyStudentIds }, status: 'ACTIVE' },
+      include: { group: { include: { course: true } } },
+    });
+
+    const monthlyTop = monthlyAchievements.map((a, i) => {
+      const student = monthlyStudents.find(s => s.id === a.studentId);
+      if (!student) return null;
+      const level = levels.find(l => student.totalPoints >= l.min && student.totalPoints <= l.max) || levels[0];
+      return {
+        rank: i + 1,
+        studentId: a.studentId,
+        fullName: student.fullName,
+        groupName: student.group?.name,
+        courseIcon: student.group?.course?.icon,
+        courseColor: student.group?.course?.color,
+        monthlyPoints: a._sum.points,
+        totalPoints: student.totalPoints,
+        level: level.name,
+        levelEmoji: level.emoji,
+      };
+    }).filter(Boolean);
+
+    // Yillik ball bo'yicha TOP 10
+    const yearlyAchievements = await prisma.achievement.groupBy({
+      by: ['studentId'],
+      where: { createdAt: { gte: yearStart }, points: { gt: 0 } },
+      _sum: { points: true },
+      orderBy: { _sum: { points: 'desc' } },
+      take: 10,
+    });
+
+    const yearlyStudentIds = yearlyAchievements.map(a => a.studentId);
+    const yearlyStudents = await prisma.student.findMany({
+      where: { id: { in: yearlyStudentIds }, status: 'ACTIVE' },
+      include: { group: { include: { course: true } } },
+    });
+
+    const yearlyTop = yearlyAchievements.map((a, i) => {
+      const student = yearlyStudents.find(s => s.id === a.studentId);
+      if (!student) return null;
+      const level = levels.find(l => student.totalPoints >= l.min && student.totalPoints <= l.max) || levels[0];
+      return {
+        rank: i + 1,
+        studentId: a.studentId,
+        fullName: student.fullName,
+        groupName: student.group?.name,
+        courseIcon: student.group?.course?.icon,
+        courseColor: student.group?.course?.color,
+        yearlyPoints: a._sum.points,
+        totalPoints: student.totalPoints,
+        level: level.name,
+        levelEmoji: level.emoji,
+      };
+    }).filter(Boolean);
+
+    res.json({
+      success: true,
+      data: {
+        monthly: monthlyTop,
+        yearly: yearlyTop,
+        monthLabel: now.toLocaleDateString('uz-UZ', { month: 'long', year: 'numeric' }),
+        yearLabel: now.getFullYear().toString(),
+      },
+    });
+  } catch (err) { next(err); }
+};
+
 // Dashboard statistika
 exports.getDashboard = async (req, res, next) => {
   try {
