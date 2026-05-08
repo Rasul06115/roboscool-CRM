@@ -219,36 +219,40 @@ const initBot = () => {
         let students = [];
         
         if (words.length > 0) {
-          // Har bir so'z fullName ichida bo'lishi kerak (AND sharti)
-          students = await prisma.student.findMany({
-            where: {
-              status: 'ACTIVE',
-              AND: words.map(word => ({
-                fullName: { contains: word, mode: 'insensitive' },
-              })),
-            },
-            include: {
-              group: { include: { course: true } },
-              achievements: { orderBy: { createdAt: 'desc' }, take: 5 },
-              evaluations: { orderBy: { period: 'desc' }, take: 1 },
-            },
-          });
-
-          // Agar topilmasa, birinchi so'z bo'yicha qidirish (familiya yoki ism)
-          if (students.length === 0) {
+          // 1-urinish: Har bir so'z fullName ichida bo'lishi kerak (AND sharti)
+          try {
             students = await prisma.student.findMany({
               where: {
                 status: 'ACTIVE',
-                OR: words.map(word => ({
+                AND: words.map(word => ({
                   fullName: { contains: word, mode: 'insensitive' },
                 })),
               },
               include: {
                 group: { include: { course: true } },
-                achievements: { orderBy: { createdAt: 'desc' }, take: 5 },
-                evaluations: { orderBy: { period: 'desc' }, take: 1 },
               },
             });
+          } catch (e) {
+            logger.error('Search AND error:', e.message);
+          }
+
+          // 2-urinish: Agar topilmasa, har qanday so'z bo'yicha (OR sharti)
+          if (students.length === 0) {
+            try {
+              students = await prisma.student.findMany({
+                where: {
+                  status: 'ACTIVE',
+                  OR: words.map(word => ({
+                    fullName: { contains: word, mode: 'insensitive' },
+                  })),
+                },
+                include: {
+                  group: { include: { course: true } },
+                },
+              });
+            } catch (e) {
+              logger.error('Search OR error:', e.message);
+            }
           }
         }
 
@@ -290,29 +294,43 @@ const initBot = () => {
               attRate = totalAtt > 0 ? Math.round((presentAtt / totalAtt) * 100) : 0;
             } catch (e) { /* ignore */ }
 
-            // So'nggi yutuqlar
+            // So'nggi yutuqlar (alohida yuklash)
             let achievementText = '';
-            if (student.achievements && student.achievements.length > 0) {
-              achievementText = '\n📋 *So\'nggi yutuqlar:*\n';
-              student.achievements.forEach(a => {
-                const sign = a.points >= 0 ? '+' : '';
-                achievementText += `  ${sign}${a.points} ⭐ ${a.title || 'Yutuq'}\n`;
+            try {
+              const achievements = await prisma.achievement.findMany({
+                where: { studentId: student.id },
+                orderBy: { createdAt: 'desc' },
+                take: 5,
               });
-            }
+              if (achievements.length > 0) {
+                achievementText = '\n📋 *So\'nggi yutuqlar:*\n';
+                achievements.forEach(a => {
+                  const sign = a.points >= 0 ? '+' : '';
+                  achievementText += `  ${sign}${a.points} ball - ${a.title || 'Yutuq'}\n`;
+                });
+              }
+            } catch (e) { /* ignore */ }
 
-            // So'nggi baholash
+            // So'nggi baholash (alohida yuklash)
             let evalText = '';
-            const eval_ = student.evaluations && student.evaluations[0];
-            if (eval_) {
-              evalText = `\n📊 *Baholash (${eval_.period}):*\n` +
-                `  ${ratingEmoji[eval_.teamwork] || '🟡'} Jamoaviy ish: ${ratingLabel[eval_.teamwork] || "O'rta"}\n` +
-                `  ${ratingEmoji[eval_.thinking] || '🟡'} Fikrlash: ${ratingLabel[eval_.thinking] || "O'rta"}\n` +
-                `  ${ratingEmoji[eval_.behavior] || '🟡'} Xulq: ${ratingLabel[eval_.behavior] || "O'rta"}\n` +
-                `  ${ratingEmoji[eval_.mastery] || '🟡'} O'zlashtirish: ${ratingLabel[eval_.mastery] || "O'rta"}\n` +
-                `  ${ratingEmoji[eval_.creativity] || '🟡'} Kreativ fikrlash: ${ratingLabel[eval_.creativity] || "O'rta"}\n` +
-                `  ${ratingEmoji[eval_.decisionMaking] || '🟡'} Tezkor qaror: ${ratingLabel[eval_.decisionMaking] || "O'rta"}\n` +
-                `  ${ratingEmoji[eval_.independence] || '🟡'} Mustaqillik: ${ratingLabel[eval_.independence] || "O'rta"}\n`;
-            }
+            try {
+              const evals = await prisma.studentEvaluation.findMany({
+                where: { studentId: student.id },
+                orderBy: { period: 'desc' },
+                take: 1,
+              });
+              const eval_ = evals[0];
+              if (eval_) {
+                evalText = `\n📊 *Baholash (${eval_.period}):*\n` +
+                  `  ${ratingEmoji[eval_.teamwork] || '🟡'} Jamoaviy ish: ${ratingLabel[eval_.teamwork] || "O'rta"}\n` +
+                  `  ${ratingEmoji[eval_.thinking] || '🟡'} Fikrlash: ${ratingLabel[eval_.thinking] || "O'rta"}\n` +
+                  `  ${ratingEmoji[eval_.behavior] || '🟡'} Xulq: ${ratingLabel[eval_.behavior] || "O'rta"}\n` +
+                  `  ${ratingEmoji[eval_.mastery] || '🟡'} O'zlashtirish: ${ratingLabel[eval_.mastery] || "O'rta"}\n` +
+                  `  ${ratingEmoji[eval_.creativity] || '🟡'} Kreativ fikrlash: ${ratingLabel[eval_.creativity] || "O'rta"}\n` +
+                  `  ${ratingEmoji[eval_.decisionMaking] || '🟡'} Tezkor qaror: ${ratingLabel[eval_.decisionMaking] || "O'rta"}\n` +
+                  `  ${ratingEmoji[eval_.independence] || '🟡'} Mustaqillik: ${ratingLabel[eval_.independence] || "O'rta"}\n`;
+              }
+            } catch (e) { /* ignore */ }
 
             const message =
               `👤 *${student.fullName}*\n\n` +
