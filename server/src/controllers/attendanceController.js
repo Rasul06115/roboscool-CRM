@@ -242,9 +242,9 @@ exports.addAchievement = async (req, res, next) => {
 
       let message;
       if (isPenalty) {
-        message = `RoboSchool: Hurmatli ota-ona, farzandingiz ${student.fullName} ga "${title}" sabab ${Math.abs(points)} ball ayirildi. Jami: ${totalPoints} ball (${level.emoji} ${level.name}). Iltimos, e'tibor bering.`;
+        message = `RoboSchool: Hurmatli ota-ona, farzandingiz ${student.fullName} ga "${title}" sabab ${Math.abs(points)} ball ayirildi. Jami: ${totalPoints} ball (${level.name}). Iltimos, e'tibor bering.`;
       } else {
-        message = `RoboSchool: Tabriklaymiz! 🎉 Farzandingiz ${student.fullName} "${title}" uchun ${points} ball oldi! Jami: ${totalPoints} ball (${level.emoji} ${level.name}). Zo'r natija!`;
+        message = `RoboSchool: Farzandingiz ${student.fullName} "${title}" uchun ${points} ball oldi! Jami: ${totalPoints} ball (${level.name}). Zo'r natija!`;
       }
 
       const result = await smsService.sendSms(student.parentPhone, message);

@@ -264,63 +264,79 @@ const initBot = () => {
         const ratingLabel = { POOR: 'Qoniqarsiz', AVERAGE: "O'rta", GOOD: 'Yaxshi', EXCELLENT: "A'lo" };
 
         for (const student of students) {
-          const totalPoints = student.totalPoints || 0;
+          try {
+            const totalPoints = student.totalPoints || 0;
 
-          // Daraja hisoblash
-          const levels = [
-            { name: 'Beginner', emoji: '🟢', min: 0, max: 50 },
-            { name: 'Junior', emoji: '🔵', min: 51, max: 150 },
-            { name: 'Middle', emoji: '🟡', min: 151, max: 300 },
-            { name: 'Senior', emoji: '🟠', min: 301, max: 500 },
-            { name: 'Master', emoji: '🔴', min: 501, max: Infinity },
-          ];
-          const level = levels.find(l => totalPoints >= l.min && totalPoints <= l.max) || levels[0];
+            // Daraja hisoblash
+            const levels = [
+              { name: 'Beginner', emoji: '🟢', min: 0, max: 50 },
+              { name: 'Junior', emoji: '🔵', min: 51, max: 150 },
+              { name: 'Middle', emoji: '🟡', min: 151, max: 300 },
+              { name: 'Senior', emoji: '🟠', min: 301, max: 500 },
+              { name: 'Master', emoji: '🔴', min: 501, max: Infinity },
+            ];
+            const level = levels.find(l => totalPoints >= l.min && totalPoints <= l.max) || levels[0];
 
-          // Davomat statistikasi
-          const attendanceRecords = await prisma.attendance.findMany({
-            where: { studentId: student.id },
-            take: 30,
-            orderBy: { date: 'desc' },
-          });
-          const totalAtt = attendanceRecords.length;
-          const presentAtt = attendanceRecords.filter(a => a.status === 'PRESENT').length;
-          const attRate = totalAtt > 0 ? Math.round((presentAtt / totalAtt) * 100) : 0;
+            // Davomat statistikasi
+            let attRate = 0, presentAtt = 0, totalAtt = 0;
+            try {
+              const attendanceRecords = await prisma.attendance.findMany({
+                where: { studentId: student.id },
+                take: 30,
+                orderBy: { date: 'desc' },
+              });
+              totalAtt = attendanceRecords.length;
+              presentAtt = attendanceRecords.filter(a => a.status === 'PRESENT').length;
+              attRate = totalAtt > 0 ? Math.round((presentAtt / totalAtt) * 100) : 0;
+            } catch (e) { /* ignore */ }
 
-          // So'nggi yutuqlar
-          let achievementText = '';
-          if (student.achievements.length > 0) {
-            achievementText = '\n📋 *So\'nggi yutuqlar:*\n';
-            student.achievements.forEach(a => {
-              const sign = a.points >= 0 ? '+' : '';
-              achievementText += `  ${sign}${a.points} ⭐ ${a.title}\n`;
-            });
+            // So'nggi yutuqlar
+            let achievementText = '';
+            if (student.achievements && student.achievements.length > 0) {
+              achievementText = '\n📋 *So\'nggi yutuqlar:*\n';
+              student.achievements.forEach(a => {
+                const sign = a.points >= 0 ? '+' : '';
+                achievementText += `  ${sign}${a.points} ⭐ ${a.title || 'Yutuq'}\n`;
+              });
+            }
+
+            // So'nggi baholash
+            let evalText = '';
+            const eval_ = student.evaluations && student.evaluations[0];
+            if (eval_) {
+              evalText = `\n📊 *Baholash (${eval_.period}):*\n` +
+                `  ${ratingEmoji[eval_.teamwork] || '🟡'} Jamoaviy ish: ${ratingLabel[eval_.teamwork] || "O'rta"}\n` +
+                `  ${ratingEmoji[eval_.thinking] || '🟡'} Fikrlash: ${ratingLabel[eval_.thinking] || "O'rta"}\n` +
+                `  ${ratingEmoji[eval_.behavior] || '🟡'} Xulq: ${ratingLabel[eval_.behavior] || "O'rta"}\n` +
+                `  ${ratingEmoji[eval_.mastery] || '🟡'} O'zlashtirish: ${ratingLabel[eval_.mastery] || "O'rta"}\n` +
+                `  ${ratingEmoji[eval_.creativity] || '🟡'} Kreativ fikrlash: ${ratingLabel[eval_.creativity] || "O'rta"}\n` +
+                `  ${ratingEmoji[eval_.decisionMaking] || '🟡'} Tezkor qaror: ${ratingLabel[eval_.decisionMaking] || "O'rta"}\n` +
+                `  ${ratingEmoji[eval_.independence] || '🟡'} Mustaqillik: ${ratingLabel[eval_.independence] || "O'rta"}\n`;
+            }
+
+            const message =
+              `👤 *${student.fullName}*\n\n` +
+              `${level.emoji} Daraja: *${level.name}*\n` +
+              `⭐ Umumiy ball: *${totalPoints}*\n` +
+              `📚 Kurs: *${student.group?.course?.name || '—'}*\n` +
+              `👥 Guruh: *${student.group?.name || '—'}*\n` +
+              `📊 Davomat: *${attRate}%* (${presentAtt}/${totalAtt})\n` +
+              evalText +
+              achievementText;
+
+            await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+          } catch (studentErr) {
+            logger.error(`Bot student error for ${student.fullName}:`, studentErr.message);
+            // Markdown xato bo'lsa — oddiy matn yuborish
+            try {
+              await bot.sendMessage(chatId,
+                `👤 ${student.fullName}\n` +
+                `Daraja: ${student.totalPoints || 0} ball\n` +
+                `Kurs: ${student.group?.course?.name || '—'}\n` +
+                `Guruh: ${student.group?.name || '—'}`
+              );
+            } catch (e) { /* ignore */ }
           }
-
-          // So'nggi baholash
-          let evalText = '';
-          const eval_ = student.evaluations[0];
-          if (eval_) {
-            evalText = `\n📊 *Baholash (${eval_.period}):*\n` +
-              `  ${ratingEmoji[eval_.teamwork]} Jamoaviy ish: ${ratingLabel[eval_.teamwork]}\n` +
-              `  ${ratingEmoji[eval_.thinking]} Fikrlash: ${ratingLabel[eval_.thinking]}\n` +
-              `  ${ratingEmoji[eval_.behavior]} Xulq: ${ratingLabel[eval_.behavior]}\n` +
-              `  ${ratingEmoji[eval_.mastery]} O'zlashtirish: ${ratingLabel[eval_.mastery]}\n` +
-              `  ${ratingEmoji[eval_.creativity]} Kreativ fikrlash: ${ratingLabel[eval_.creativity]}\n` +
-              `  ${ratingEmoji[eval_.decisionMaking]} Tezkor qaror: ${ratingLabel[eval_.decisionMaking]}\n` +
-              `  ${ratingEmoji[eval_.independence]} Mustaqillik: ${ratingLabel[eval_.independence]}\n`;
-          }
-
-          const message =
-            `👤 *${student.fullName}*\n\n` +
-            `${level.emoji} Daraja: *${level.name}*\n` +
-            `⭐ Umumiy ball: *${totalPoints}*\n` +
-            `📚 Kurs: *${student.group?.course?.name || '—'}*\n` +
-            `👥 Guruh: *${student.group?.name || '—'}*\n` +
-            `📊 Davomat: *${attRate}%* (${presentAtt}/${totalAtt})\n` +
-            evalText +
-            achievementText;
-
-          bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
         }
       } catch (err) {
         logger.error('Parent lookup error:', err);

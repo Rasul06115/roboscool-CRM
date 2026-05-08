@@ -60,7 +60,7 @@ exports.upsertEvaluation = async (req, res, next) => {
         `Jamoaviy ish: ${RATING_LABELS[teamwork]}, ` +
         `Xulq: ${RATING_LABELS[behavior]}, ` +
         `O'zlashtirish: ${RATING_LABELS[mastery]}. ` +
-        `Daraja: ${level.emoji} ${level.name} (${s.totalPoints} ball). ` +
+        `Daraja: ${level.name} (${s.totalPoints} ball). ` +
         `Batafsil: Telegram botimizga yozing.`;
 
       const result = await smsService.sendSms(s.parentPhone, message);
