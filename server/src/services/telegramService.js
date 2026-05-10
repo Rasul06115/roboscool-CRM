@@ -47,8 +47,9 @@ const initBot = () => {
           `*Admin buyruqlari:*\n` +
           `/stats — Statistika\n` +
           `/debtors — Qarzdorlar\n` +
-          `/users — Foydalanuvchilar soni\n` +
-          `/reklama — Ommaviy xabar yuborish\n\n` +
+          `/users — Foydalanuvchilar ro'yxati\n` +
+          `/reklama — Ommaviy xabar yuborish\n` +
+          `/bekor — Reklamani bekor qilish\n\n` +
           `*Ota-onalar uchun:*\n` +
           `O'quvchi ismini yozing — natijalar qaytariladi.`,
           { parse_mode: 'Markdown' }
@@ -65,24 +66,51 @@ const initBot = () => {
       }
     });
 
-    // Admin: Foydalanuvchilar soni
-    bot.onText(/\/users/, async (msg) => {
+    // Admin: Foydalanuvchilar ro'yxati
+    bot.onText(/\/(users|foydalanuvchilar)/, async (msg) => {
       if (!isAdmin(msg.chat.id)) {
         return bot.sendMessage(msg.chat.id, '⛔ Bu buyruq faqat admin uchun.');
       }
       try {
-        const total = await prisma.botUser.count();
+        const users = await prisma.botUser.findMany({
+          orderBy: { createdAt: 'desc' },
+        });
+        const total = users.length;
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const todayCount = await prisma.botUser.count({ where: { createdAt: { gte: today } } });
+        const todayCount = users.filter(u => new Date(u.createdAt) >= today).length;
 
-        bot.sendMessage(msg.chat.id,
-          `👥 *Bot foydalanuvchilari*\n\n` +
-          `📊 Jami: *${total}* ta\n` +
-          `🆕 Bugun qo'shilgan: *${todayCount}* ta`,
-          { parse_mode: 'Markdown' }
-        );
+        let list = '';
+        users.forEach((u, i) => {
+          const date = new Date(u.createdAt).toLocaleDateString('uz-UZ');
+          const username = u.username ? `@${u.username}` : '—';
+          const name = u.firstName || '—';
+          const admin = u.isAdmin ? ' 👑' : '';
+          list += `${i + 1}. ${name} (${username})${admin} — ${date}\n`;
+        });
+
+        // Telegram xabar limiti 4096 belgi
+        if (list.length > 3500) {
+          // Ro'yxat juda uzun — qisqartirib yuborish
+          const shortList = list.substring(0, 3500) + '\n...';
+          await bot.sendMessage(msg.chat.id,
+            `👥 *Bot foydalanuvchilari*\n\n` +
+            `📊 Jami: *${total}* ta\n` +
+            `🆕 Bugun: *${todayCount}* ta\n\n` +
+            `${shortList}`,
+            { parse_mode: 'Markdown' }
+          );
+        } else {
+          await bot.sendMessage(msg.chat.id,
+            `👥 *Bot foydalanuvchilari*\n\n` +
+            `📊 Jami: *${total}* ta\n` +
+            `🆕 Bugun: *${todayCount}* ta\n\n` +
+            `${list}`,
+            { parse_mode: 'Markdown' }
+          );
+        }
       } catch (err) {
+        logger.error('Users list error:', err);
         bot.sendMessage(msg.chat.id, '❌ Xatolik yuz berdi.');
       }
     });
