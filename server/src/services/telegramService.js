@@ -67,18 +67,39 @@ const initBot = () => {
     });
 
     // Admin: Foydalanuvchilar ro'yxati
-    bot.onText(/\/(users|foydalanuvchilar)/, async (msg) => {
+    bot.onText(/\/(users?|foydalanuvchilar)/i, async (msg) => {
       if (!isAdmin(msg.chat.id)) {
         return bot.sendMessage(msg.chat.id, '⛔ Bu buyruq faqat admin uchun.');
       }
       try {
-        const users = await prisma.botUser.findMany({
-          orderBy: { createdAt: 'desc' },
-        });
-        const total = users.length;
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const todayCount = users.filter(u => new Date(u.createdAt) >= today).length;
+        let users = [];
+        let total = 0;
+        let todayCount = 0;
+
+        try {
+          users = await prisma.botUser.findMany({
+            orderBy: { createdAt: 'desc' },
+          });
+          total = users.length;
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          todayCount = users.filter(u => new Date(u.createdAt) >= today).length;
+        } catch (dbErr) {
+          logger.error('BotUser table error:', dbErr.message);
+          return bot.sendMessage(msg.chat.id,
+            `👥 *Bot foydalanuvchilari*\n\n` +
+            `⚠️ Jadval hali yaratilmagan yoki Prisma yangilanmagan.\n` +
+            `Neon SQL'da \`bot_users\` jadvalini yarating.`,
+            { parse_mode: 'Markdown' }
+          );
+        }
+
+        if (total === 0) {
+          return bot.sendMessage(msg.chat.id,
+            `👥 *Bot foydalanuvchilari*\n\n📊 Hali hech kim /start bosmagan.`,
+            { parse_mode: 'Markdown' }
+          );
+        }
 
         let list = '';
         users.forEach((u, i) => {
@@ -89,29 +110,16 @@ const initBot = () => {
           list += `${i + 1}. ${name} (${username})${admin} — ${date}\n`;
         });
 
-        // Telegram xabar limiti 4096 belgi
-        if (list.length > 3500) {
-          // Ro'yxat juda uzun — qisqartirib yuborish
-          const shortList = list.substring(0, 3500) + '\n...';
-          await bot.sendMessage(msg.chat.id,
-            `👥 *Bot foydalanuvchilari*\n\n` +
-            `📊 Jami: *${total}* ta\n` +
-            `🆕 Bugun: *${todayCount}* ta\n\n` +
-            `${shortList}`,
-            { parse_mode: 'Markdown' }
-          );
-        } else {
-          await bot.sendMessage(msg.chat.id,
-            `👥 *Bot foydalanuvchilari*\n\n` +
-            `📊 Jami: *${total}* ta\n` +
-            `🆕 Bugun: *${todayCount}* ta\n\n` +
-            `${list}`,
-            { parse_mode: 'Markdown' }
-          );
+        const header = `👥 *Bot foydalanuvchilari*\n\n📊 Jami: *${total}* ta\n🆕 Bugun: *${todayCount}* ta\n\n`;
+
+        if ((header + list).length > 4000) {
+          list = list.substring(0, 4000 - header.length) + '\n...';
         }
+
+        await bot.sendMessage(msg.chat.id, header + list, { parse_mode: 'Markdown' });
       } catch (err) {
-        logger.error('Users list error:', err);
-        bot.sendMessage(msg.chat.id, '❌ Xatolik yuz berdi.');
+        logger.error('Users command error:', err);
+        bot.sendMessage(msg.chat.id, '❌ Xatolik: ' + (err.message || '').substring(0, 100));
       }
     });
 
