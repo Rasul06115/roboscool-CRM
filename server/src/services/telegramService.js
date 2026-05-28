@@ -208,7 +208,11 @@ const initBot = () => {
 
         for (const user of users) {
           try {
+<<<<<<< HEAD
             await sendLongMessage(user.chatId, text);
+=======
+            await bot.sendMessage(user.chatId, text);
+>>>>>>> f010f6d537c5c2a046451e08d004edfd1ef1b68a
             sent++;
           } catch (e) {
             failed++;
@@ -218,9 +222,17 @@ const initBot = () => {
         }
 
         bot.sendMessage(chatId,
+<<<<<<< HEAD
           `✅ Reklama yuborildi!\n\n📨 Yuborildi: ${sent}\n❌ Xatolik: ${failed}\n👥 Jami: ${users.length}`
         );
         return;
+=======
+        `✅ Reklama yuborildi!\n\n` +
+        `📨 Yuborildi: ${sent}\n` +
+        `❌ Xatolik: ${failed}\n` +
+        `👥 Jami: ${users.length}`
+    );
+>>>>>>> f010f6d537c5c2a046451e08d004edfd1ef1b68a
       }
 
       // ===== OTA-ONA QIDIRISH =====
