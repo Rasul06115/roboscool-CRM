@@ -227,11 +227,11 @@ const initBot = () => {
         const users = await prisma.botUser.findMany();
         let sent = 0, failed = 0;
 
-        bot.sendMessage(chatId, `📤 *Yuborilmoqda...* ${users.length} ta foydalanuvchiga`, { parse_mode: 'Markdown' });
+        bot.sendMessage(chatId, `📤 Yuborilmoqda... ${users.length} ta foydalanuvchiga`);
 
         for (const user of users) {
           try {
-            await bot.sendMessage(user.chatId, text, { parse_mode: 'Markdown' });
+            await bot.sendMessage(user.chatId, text);
             sent++;
           } catch (e) { failed++; }
           // Telegram limit uchun kichik kutish
@@ -239,13 +239,11 @@ const initBot = () => {
         }
 
         bot.sendMessage(chatId,
-          `✅ *Reklama yuborildi!*\n\n` +
-          `📨 Yuborildi: *${sent}*\n` +
-          `❌ Xatolik: *${failed}*\n` +
-          `👥 Jami: *${users.length}*`,
-          { parse_mode: 'Markdown' }
-        );
-        return;
+        `✅ Reklama yuborildi!\n\n` +
+        `📨 Yuborildi: ${sent}\n` +
+        `❌ Xatolik: ${failed}\n` +
+        `👥 Jami: ${users.length}`
+    );
       }
 
       try {
