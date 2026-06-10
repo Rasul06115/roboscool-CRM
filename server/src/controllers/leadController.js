@@ -35,8 +35,9 @@ exports.getById = async (req, res, next) => {
 
 exports.create = async (req, res, next) => {
   try {
-    const lead = await prisma.lead.create({ data: req.body });
-
+    const data = { ...req.body };
+if (data.trialDate) data.trialDate = new Date(data.trialDate);
+  const lead = await prisma.lead.create({ data });
     // Telegram bildirishnoma
     telegramService.notifyNewLead(lead.fullName, lead.phone, lead.source, lead.interest);
 
@@ -46,7 +47,9 @@ exports.create = async (req, res, next) => {
 
 exports.update = async (req, res, next) => {
   try {
-    const lead = await prisma.lead.update({ where: { id: req.params.id }, data: req.body });
+    const data = { ...req.body };
+if (data.trialDate) data.trialDate = new Date(data.trialDate);
+  const lead = await prisma.lead.update({ where: { id: req.params.id }, data });
 
     // Agar sinov darsi belgilangan bo'lsa — SMS yuborish
     if (req.body.status === 'TRIAL_SCHEDULED' && req.body.trialDate) {
