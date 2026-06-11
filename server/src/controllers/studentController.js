@@ -2,7 +2,7 @@ const prisma = require('../config/prisma');
 
 exports.getAll = async (req, res, next) => {
   try {
-    const { search, status, groupId, page = 1, limit = 50 } = req.query;
+    const { search, status, groupId, page = 1, limit = 500 } = req.query;
     const where = {};
 
     if (search) {
