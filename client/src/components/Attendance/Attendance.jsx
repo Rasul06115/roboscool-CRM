@@ -47,6 +47,8 @@ export default function Attendance() {
       .filter(a => a.status)
       .map(a => ({ studentId: a.studentId, status: a.status, note: a.note || null }));
 
+    console.log('Saqlanayotgan records:', records.length, records);
+
     if (records.length === 0) { toast.error("Kamida 1 ta o'quvchini belgilang!"); return; }
 
     setSaving(true);
