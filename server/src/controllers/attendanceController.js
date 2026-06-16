@@ -91,7 +91,7 @@ exports.markBulkAttendance = async (req, res, next) => {
       for (const record of records) {
         const result = await tx.attendance.upsert({
           where: { studentId_date: { studentId: record.studentId, date: new Date(date) } },
-          update: { status: record.status, note: record.note || null },
+          update: { status: record.status, note: record.note || null, groupId },
           create: {
             studentId: record.studentId,
             groupId,
