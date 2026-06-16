@@ -216,6 +216,7 @@ function GroupModal({ group, courses, teachers: initialTeachers, onSave, onClose
 
   const handleTimeSlot = (slot) => {
     if (slot === 'MORNING') setForm({ ...form, timeSlot: 'MORNING', startTime: '08:00', endTime: '10:00' });
+    else if (slot === 'MIDDAY') setForm({ ...form, timeSlot: 'MIDDAY', startTime: '10:00', endTime: '12:00' });
     else setForm({ ...form, timeSlot: 'AFTERNOON', startTime: '15:00', endTime: '17:00' });
   };
 
@@ -336,14 +337,18 @@ function GroupModal({ group, courses, teachers: initialTeachers, onSave, onClose
           {/* Vaqt */}
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-2">⏰ Dars vaqti</label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <button onClick={() => handleTimeSlot('MORNING')}
                 className={`p-3 rounded-xl border-2 text-center ${form.timeSlot === 'MORNING' ? 'border-teal-500 bg-teal-50' : 'border-gray-200'}`}>
                 <p className="text-lg">🌅</p><p className="text-sm font-semibold">Ertalab</p><p className="text-xs text-gray-500">08:00 — 10:00</p>
               </button>
+              <button onClick={() => handleTimeSlot('MIDDAY')}
+                className={`p-3 rounded-xl border-2 text-center ${form.timeSlot === 'MIDDAY' ? 'border-teal-500 bg-teal-50' : 'border-gray-200'}`}>
+                <p className="text-lg">☀️</p><p className="text-sm font-semibold">Kunduzi 1</p><p className="text-xs text-gray-500">10:00 — 12:00</p>
+              </button>
               <button onClick={() => handleTimeSlot('AFTERNOON')}
                 className={`p-3 rounded-xl border-2 text-center ${form.timeSlot === 'AFTERNOON' ? 'border-teal-500 bg-teal-50' : 'border-gray-200'}`}>
-                <p className="text-lg">🌤</p><p className="text-sm font-semibold">Kunduzi</p><p className="text-xs text-gray-500">15:00 — 17:00</p>
+                <p className="text-lg">🌤</p><p className="text-sm font-semibold">Kunduzi 2</p><p className="text-xs text-gray-500">15:00 — 17:00</p>
               </button>
             </div>
           </div>
