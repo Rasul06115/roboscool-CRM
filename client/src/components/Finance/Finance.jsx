@@ -3,7 +3,7 @@ import { Plus, Trash2, Filter, AlertTriangle, TrendingUp, TrendingDown, DollarSi
 import toast from 'react-hot-toast';
 import { paymentsAPI, groupsAPI, studentsAPI, coursesAPI } from '../../utils/api';
 import { formatMoney } from '../../utils/helpers';
-
+import MonthlyReport from './MonthlyReport'; 
 // Kursga qarab dinamik narx: 5-sanagacha = discountPrice, keyin = price
 const getDynamicPrice = (course) => {
   if (!course) return 0;
@@ -88,7 +88,9 @@ export default function Finance() {
   if (loading) return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600" /></div>;
 
   return (
-    <div className="space-y-5 animate-fadeIn">
+    <div className="space-y-6 animate-fadeIn">
+      <MonthlyReport />
+    
       {/* Statistika */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl border border-gray-200 p-5">
