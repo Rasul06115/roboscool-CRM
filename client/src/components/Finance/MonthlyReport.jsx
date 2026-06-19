@@ -33,6 +33,11 @@ export default function MonthlyReport() {
       if (selectedGroup) students = students.filter(s => s.groupId === selectedGroup);
 
       // Har bir o'quvchi uchun davomat va to'lovlarni hisoblash
+      const allPaymentsRes = await api.get('/payments').catch(() => ({ data: [] }));
+      const allPayments = allPaymentsRes.data || [];
+      
+      
+      
       const data = [];
       for (const student of students) {
         try {
@@ -50,8 +55,8 @@ export default function MonthlyReport() {
           const earnedFromLessons = presentCount * lessonPrice;
 
           // To'lovlar
-          const payRes = await api.get(`/students/${student.id}/payments`).catch(() => ({ data: [] }));
-          const monthPayments = (payRes.data || []).filter(p => {
+          const monthPayments = allPayments.filter(p => {
+            if (p.studentId !== student.id) return false;
             const d = new Date(p.paymentDate).toISOString().slice(0, 10);
             return d >= startDate && d <= endDate;
           });
