@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, Filter, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Calendar } from 'lucide-react';
+import { Plus, Trash2, Filter, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Calendar, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { paymentsAPI, groupsAPI, studentsAPI, coursesAPI } from '../../utils/api';
+import { paymentsAPI, groupsAPI, studentsAPI, coursesAPI, smsAPI } from '../../utils/api';
 import { formatMoney } from '../../utils/helpers';
-import MonthlyReport from './MonthlyReport'; 
+import MonthlyReport from './MonthlyReport';
+
 // Kursga qarab dinamik narx: 5-sanagacha = discountPrice, keyin = price
 const getDynamicPrice = (course) => {
   if (!course) return 0;
@@ -22,6 +23,8 @@ export default function Finance() {
   const [filterGroup, setFilterGroup] = useState('');
   const [filterMonth, setFilterMonth] = useState('');
   const [stats, setStats] = useState(null);
+  const [preselectedStudent, setPreselectedStudent] = useState(null);
+  const [sendingSms, setSendingSms] = useState({});
 
   useEffect(() => { loadData(); }, []);
 
@@ -47,6 +50,46 @@ export default function Finance() {
     try { await paymentsAPI.delete(id); toast.success("To'lov o'chirildi!"); loadData(); } catch (e) {}
   };
 
+  // To'lov qabul qilish (tezkor)
+  const openPaymentForStudent = (student) => {
+    setPreselectedStudent(student);
+    setShowModal(true);
+  };
+
+  // To'lov eslatma SMS yuborish
+  const sendPaymentReminder = async (student) => {
+    if (!student.parentPhone) { toast.error('Telefon raqami yo\'q!'); return; }
+    if (!confirm(`${student.fullName} ota-onasiga SMS yuborilsinmi?`)) return;
+
+    setSendingSms(prev => ({ ...prev, [student.id]: true }));
+    try {
+      const message = `RoboSchool: Hurmatli ota-ona! ${student.fullName} ning to'lov muddati yaqinlashdi. Iltimos, to'lovni amalga oshiring.`;
+      await smsAPI.send({ phone: student.parentPhone, message });
+      toast.success(`${student.fullName} ga SMS yuborildi!`);
+    } catch (e) {
+      toast.error('SMS yuborishda xatolik!');
+    } finally {
+      setSendingSms(prev => ({ ...prev, [student.id]: false }));
+    }
+  };
+
+  // Hammasiga ommaviy SMS
+  const sendBulkReminder = async (debtors) => {
+    if (debtors.length === 0) return;
+    if (!confirm(`${debtors.length} ta qarzdor ota-onasiga SMS yuborilsinmi?`)) return;
+
+    let sent = 0, failed = 0;
+    for (const student of debtors) {
+      if (!student.parentPhone) { failed++; continue; }
+      try {
+        const message = `RoboSchool: Hurmatli ota-ona! ${student.fullName} ning to'lov muddati yaqinlashdi. Iltimos, to'lovni amalga oshiring.`;
+        await smsAPI.send({ phone: student.parentPhone, message });
+        sent++;
+      } catch (e) { failed++; }
+    }
+    toast.success(`${sent} ta SMS yuborildi! ${failed > 0 ? `${failed} ta xatolik` : ''}`);
+  };
+
   // Filtrlangan to'lovlar
   const filtered = payments.filter(p => {
     const matchGroup = !filterGroup || p.student?.groupId === filterGroup;
@@ -55,16 +98,11 @@ export default function Finance() {
   });
 
   const filteredTotal = filtered.reduce((s, p) => s + p.amount, 0);
-
-  // Oylar ro'yxati
   const months = [...new Set(payments.map(p => p.monthFor).filter(Boolean))].sort().reverse();
-
   const today = new Date().getDate();
-
-  // Oy tanlanmagan bo'lsa — joriy oy
   const selectedMonth = filterMonth || new Date().toISOString().slice(0, 7);
 
-  // Guruhlar kesimida to'laganlar va qarzdorlar
+  // Guruhlar kesimida
   const groupBreakdown = useMemo(() => {
     return groups.map(g => {
       const groupStudents = students.filter(s => s.groupId === g.id && s.status === 'ACTIVE');
@@ -90,7 +128,7 @@ export default function Finance() {
   return (
     <div className="space-y-6 animate-fadeIn">
       <MonthlyReport />
-    
+
       {/* Statistika */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl border border-gray-200 p-5">
@@ -118,7 +156,7 @@ export default function Finance() {
         </div>
       </div>
 
-      {/* Kurs narxlari jadvali */}
+      {/* Kurs narxlari */}
       <div className={`p-4 rounded-2xl border ${today <= 5 ? 'bg-green-50 border-green-200' : 'bg-orange-50 border-orange-200'}`}>
         <div className="flex items-center gap-3 mb-3">
           <Calendar size={20} className={today <= 5 ? 'text-green-600' : 'text-orange-600'} />
@@ -166,7 +204,7 @@ export default function Finance() {
             </div>
           )}
         </div>
-        <button onClick={() => setShowModal(true)}
+        <button onClick={() => { setPreselectedStudent(null); setShowModal(true); }}
           className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700">
           <Plus size={18} /> To'lov qabul qilish
         </button>
@@ -214,7 +252,7 @@ export default function Finance() {
         {filtered.length === 0 && <p className="text-center text-gray-400 py-10">To'lov topilmadi</p>}
       </div>
 
-      {/* Guruhlar kesimida oy bo'yicha to'lov holati */}
+      {/* Guruhlar kesimida */}
       <div className="bg-white rounded-2xl border border-gray-200 p-5">
         <div className="flex justify-between items-center mb-4">
           <h3 className="font-bold flex items-center gap-2">
@@ -245,10 +283,20 @@ export default function Finance() {
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-lg font-extrabold" style={{ color: c?.color }}>{pct}%</p>
-                      <div className="w-24 bg-gray-200 rounded-full h-1.5 mt-1">
-                        <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, background: c?.color }} />
+                    <div className="flex items-center gap-3">
+                      {/* Hammaga SMS tugmasi */}
+                      {debtors.length > 0 && (
+                        <button onClick={() => sendBulkReminder(debtors)}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-yellow-500 text-white rounded-lg text-xs font-semibold hover:bg-yellow-600"
+                          title="Barcha qarzdorlarga SMS">
+                          <Send size={12} /> {debtors.length} ta SMS
+                        </button>
+                      )}
+                      <div className="text-right">
+                        <p className="text-lg font-extrabold" style={{ color: c?.color }}>{pct}%</p>
+                        <div className="w-24 bg-gray-200 rounded-full h-1.5 mt-1">
+                          <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, background: c?.color }} />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -275,12 +323,23 @@ export default function Finance() {
                       ) : (
                         <div className="space-y-1.5 max-h-48 overflow-y-auto">
                           {debtors.map(s => (
-                            <div key={s.id} className="flex justify-between items-center p-2 bg-red-50/50 rounded-lg">
-                              <div>
-                                <p className="text-sm font-medium text-gray-700">{s.fullName}</p>
+                            <div key={s.id} className="flex justify-between items-center p-2 bg-red-50/50 rounded-lg group/item">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-700 truncate">{s.fullName}</p>
                                 {s.parentPhone && <p className="text-[10px] text-gray-400 font-mono">{s.parentPhone}</p>}
                               </div>
-                              <span className="text-xs font-bold text-red-600">-{formatMoney(coursePrice)}</span>
+                              <div className="flex items-center gap-1.5 ml-2">
+                                <span className="text-xs font-bold text-red-600 mr-1">-{formatMoney(coursePrice)}</span>
+                                <button onClick={() => openPaymentForStudent(s)}
+                                  className="p-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs font-bold"
+                                  title="To'lov qabul qilish">💰</button>
+                                <button onClick={() => sendPaymentReminder(s)}
+                                  disabled={sendingSms[s.id]}
+                                  className="p-1.5 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 text-xs font-bold disabled:opacity-50"
+                                  title="To'lov eslatma SMS">
+                                  {sendingSms[s.id] ? '...' : '📱'}
+                                </button>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -298,39 +357,48 @@ export default function Finance() {
         groups={groups}
         students={students}
         courses={courses}
+        preselectedStudent={preselectedStudent}
         onSave={async (form) => {
           try {
             await paymentsAPI.create(form);
             toast.success("To'lov qabul qilindi!");
             setShowModal(false);
+            setPreselectedStudent(null);
             loadData();
           } catch (e) {}
         }}
-        onClose={() => setShowModal(false)}
+        onClose={() => { setShowModal(false); setPreselectedStudent(null); }}
       />}
     </div>
   );
 }
 
 // ==================== TO'LOV MODAL ====================
-function PaymentModal({ groups, students, courses, onSave, onClose }) {
-  const [filterGroup, setFilterGroup] = useState('');
+function PaymentModal({ groups, students, courses, preselectedStudent, onSave, onClose }) {
+  const [filterGroup, setFilterGroup] = useState(preselectedStudent?.groupId || '');
+
+  // Avtomatik narx
+  const initStudent = preselectedStudent;
+  const initGroup = initStudent ? groups.find(g => g.id === initStudent.groupId) : null;
+  const initPrice = initGroup?.course ? getDynamicPrice(initGroup.course) : '';
+
   const [form, setForm] = useState({
-    studentId: '', amount: '', paymentMethod: 'CASH',
-    monthFor: new Date().toISOString().slice(0, 7), note: '',
+    studentId: preselectedStudent?.id || '',
+    amount: initPrice || '',
+    paymentMethod: 'CASH',
+    monthFor: new Date().toISOString().slice(0, 7),
+    note: '',
   });
 
   const ic = "w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:border-teal-500 focus:outline-none";
   const filteredStudents = filterGroup ? students.filter(s => s.groupId === filterGroup) : students;
   const today = new Date().getDate();
 
-  // Tanlangan o'quvchining kursi va narxi
   const selectedStudent = students.find(s => s.id === form.studentId);
   const selectedGroup = selectedStudent ? groups.find(g => g.id === selectedStudent.groupId) : null;
   const selectedCourse = selectedGroup?.course || null;
   const coursePrice = selectedCourse ? getDynamicPrice(selectedCourse) : 0;
 
-  // O'quvchi tanlanganda narxni avtomatik yangilash
   const handleStudentChange = (studentId) => {
     const student = students.find(s => s.id === studentId);
     const group = student ? groups.find(g => g.id === student.groupId) : null;
@@ -343,11 +411,14 @@ function PaymentModal({ groups, students, courses, onSave, onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-md mx-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center px-6 py-4 border-b sticky top-0 bg-white z-10">
-          <h3 className="text-lg font-bold">💰 To'lov qabul qilish</h3>
+          <h3 className="text-lg font-bold">
+            💰 To'lov qabul qilish
+            {preselectedStudent && <span className="text-sm text-teal-600 ml-2">— {preselectedStudent.fullName}</span>}
+          </h3>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100">✕</button>
         </div>
         <div className="p-6 space-y-4">
-          {/* Kurs narxlari info */}
+          {/* Kurs narxlari */}
           <div className={`p-3 rounded-xl text-sm ${today <= 5 ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'}`}>
             <p className="font-bold mb-1">{today <= 5 ? "🟢 Chegirmali muddat (5-sanagacha)" : "🟠 Oddiy narx (5-sanadan o'tgan)"}</p>
             <div className="text-xs space-y-0.5">
@@ -389,7 +460,6 @@ function PaymentModal({ groups, students, courses, onSave, onClose }) {
             </select>
           </div>
 
-          {/* Tanlangan kurs narxi ko'rsatiladi */}
           {selectedCourse && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: `${selectedCourse.color}10`, color: selectedCourse.color }}>
               <span className="text-base">{selectedCourse.icon}</span>
@@ -419,9 +489,6 @@ function PaymentModal({ groups, students, courses, onSave, onClose }) {
                     {formatMoney(selectedCourse.price)}
                   </button>
                 </div>
-              )}
-              {!selectedCourse && (
-                <p className="text-[10px] text-gray-400 mt-1">O'quvchi tanlanganda narx avtomatik to'ldiriladi</p>
               )}
             </div>
             <div>
