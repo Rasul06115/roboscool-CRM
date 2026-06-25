@@ -56,16 +56,16 @@ export default function Finance() {
     setShowModal(true);
   };
 
-  // To'lov eslatma SMS yuborish
+  // To'lov eslatma SMS yuborish (qarzdor)
   const sendPaymentReminder = async (student) => {
-    if (!student.parentPhone) { toast.error('Telefon raqami yo\'q!'); return; }
-    if (!confirm(`${student.fullName} ota-onasiga SMS yuborilsinmi?`)) return;
+    if (!student.parentPhone) { toast.error("Telefon raqami yo'q!"); return; }
+    if (!confirm(`${student.fullName} ota-onasiga eslatma SMS yuborilsinmi?`)) return;
 
     setSendingSms(prev => ({ ...prev, [student.id]: true }));
     try {
       const message = `RoboSchool: Hurmatli ota-ona! ${student.fullName} ning to'lov muddati yaqinlashdi. Iltimos, to'lovni amalga oshiring.`;
       await smsAPI.send({ phone: student.parentPhone, message });
-      toast.success(`${student.fullName} ga SMS yuborildi!`);
+      toast.success(`${student.fullName} ga eslatma SMS yuborildi!`);
     } catch (e) {
       toast.error('SMS yuborishda xatolik!');
     } finally {
@@ -73,10 +73,27 @@ export default function Finance() {
     }
   };
 
-  // Hammasiga ommaviy SMS
+  // Tashakkur SMS yuborish (to'lagan)
+  const sendThankYouSms = async (student) => {
+    if (!student.parentPhone) { toast.error("Telefon raqami yo'q!"); return; }
+    if (!confirm(`${student.fullName} ota-onasiga tashakkur SMS yuborilsinmi?`)) return;
+
+    setSendingSms(prev => ({ ...prev, [student.id]: true }));
+    try {
+      const message = `Hurmatli ${student.fullName}! To'lovni o'z vaqtida qilganingiz uchun tashakkur. Hurmat bilan ROBOSCHOOL`;
+      await smsAPI.send({ phone: student.parentPhone, message });
+      toast.success(`${student.fullName} ga tashakkur SMS yuborildi!`);
+    } catch (e) {
+      toast.error('SMS yuborishda xatolik!');
+    } finally {
+      setSendingSms(prev => ({ ...prev, [student.id]: false }));
+    }
+  };
+
+  // Ommaviy eslatma SMS (qarzdorlarga)
   const sendBulkReminder = async (debtors) => {
     if (debtors.length === 0) return;
-    if (!confirm(`${debtors.length} ta qarzdor ota-onasiga SMS yuborilsinmi?`)) return;
+    if (!confirm(`${debtors.length} ta qarzdor ota-onasiga eslatma SMS yuborilsinmi?`)) return;
 
     let sent = 0, failed = 0;
     for (const student of debtors) {
@@ -88,6 +105,23 @@ export default function Finance() {
       } catch (e) { failed++; }
     }
     toast.success(`${sent} ta SMS yuborildi! ${failed > 0 ? `${failed} ta xatolik` : ''}`);
+  };
+
+  // Ommaviy tashakkur SMS (to'laganlarga)
+  const sendBulkThankYou = async (paid) => {
+    if (paid.length === 0) return;
+    if (!confirm(`${paid.length} ta to'lagan ota-onaga tashakkur SMS yuborilsinmi?`)) return;
+
+    let sent = 0, failed = 0;
+    for (const student of paid) {
+      if (!student.parentPhone) { failed++; continue; }
+      try {
+        const message = `Hurmatli ${student.fullName}! To'lovni o'z vaqtida qilganingiz uchun tashakkur. Hurmat bilan ROBOSCHOOL`;
+        await smsAPI.send({ phone: student.parentPhone, message });
+        sent++;
+      } catch (e) { failed++; }
+    }
+    toast.success(`${sent} ta tashakkur SMS yuborildi! ${failed > 0 ? `${failed} ta xatolik` : ''}`);
   };
 
   // Filtrlangan to'lovlar
@@ -272,7 +306,7 @@ export default function Finance() {
               const c = group.course;
               return (
                 <div key={group.id} className="border border-gray-200 rounded-2xl overflow-hidden">
-                  <div className="flex justify-between items-center px-4 py-3" style={{ background: `${c?.color}10` }}>
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center px-4 py-3 gap-2" style={{ background: `${c?.color}10` }}>
                     <div className="flex items-center gap-2">
                       <span className="text-xl">{c?.icon}</span>
                       <div>
@@ -283,13 +317,21 @@ export default function Finance() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      {/* Hammaga SMS tugmasi */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/* Tashakkur SMS */}
+                      {paid.length > 0 && (
+                        <button onClick={() => sendBulkThankYou(paid)}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-semibold hover:bg-green-700"
+                          title="Barcha to'laganlarga tashakkur SMS">
+                          <Send size={12} /> {paid.length} ta tashakkur
+                        </button>
+                      )}
+                      {/* Qarzdorlarga eslatma */}
                       {debtors.length > 0 && (
                         <button onClick={() => sendBulkReminder(debtors)}
                           className="flex items-center gap-1 px-3 py-1.5 bg-yellow-500 text-white rounded-lg text-xs font-semibold hover:bg-yellow-600"
-                          title="Barcha qarzdorlarga SMS">
-                          <Send size={12} /> {debtors.length} ta SMS
+                          title="Barcha qarzdorlarga eslatma SMS">
+                          <Send size={12} /> {debtors.length} ta eslatma
                         </button>
                       )}
                       <div className="text-right">
@@ -309,8 +351,19 @@ export default function Finance() {
                         <div className="space-y-1.5 max-h-48 overflow-y-auto">
                           {paid.map(s => (
                             <div key={s.id} className="flex justify-between items-center p-2 bg-green-50/50 rounded-lg">
-                              <span className="text-sm font-medium text-gray-700">{s.fullName}</span>
-                              <span className="text-xs font-bold text-green-600">+{formatMoney(s.paymentAmount)}</span>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-700 truncate">{s.fullName}</p>
+                                {s.parentPhone && <p className="text-[10px] text-gray-400 font-mono">{s.parentPhone}</p>}
+                              </div>
+                              <div className="flex items-center gap-1.5 ml-2">
+                                <span className="text-xs font-bold text-green-600">+{formatMoney(s.paymentAmount)}</span>
+                                <button onClick={() => sendThankYouSms(s)}
+                                  disabled={sendingSms[s.id]}
+                                  className="p-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs font-bold disabled:opacity-50"
+                                  title="Tashakkur SMS">
+                                  {sendingSms[s.id] ? '...' : '💚'}
+                                </button>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -323,7 +376,7 @@ export default function Finance() {
                       ) : (
                         <div className="space-y-1.5 max-h-48 overflow-y-auto">
                           {debtors.map(s => (
-                            <div key={s.id} className="flex justify-between items-center p-2 bg-red-50/50 rounded-lg group/item">
+                            <div key={s.id} className="flex justify-between items-center p-2 bg-red-50/50 rounded-lg">
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium text-gray-700 truncate">{s.fullName}</p>
                                 {s.parentPhone && <p className="text-[10px] text-gray-400 font-mono">{s.parentPhone}</p>}
@@ -377,7 +430,6 @@ export default function Finance() {
 function PaymentModal({ groups, students, courses, preselectedStudent, onSave, onClose }) {
   const [filterGroup, setFilterGroup] = useState(preselectedStudent?.groupId || '');
 
-  // Avtomatik narx
   const initStudent = preselectedStudent;
   const initGroup = initStudent ? groups.find(g => g.id === initStudent.groupId) : null;
   const initPrice = initGroup?.course ? getDynamicPrice(initGroup.course) : '';
@@ -418,7 +470,6 @@ function PaymentModal({ groups, students, courses, preselectedStudent, onSave, o
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100">✕</button>
         </div>
         <div className="p-6 space-y-4">
-          {/* Kurs narxlari */}
           <div className={`p-3 rounded-xl text-sm ${today <= 5 ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'}`}>
             <p className="font-bold mb-1">{today <= 5 ? "🟢 Chegirmali muddat (5-sanagacha)" : "🟠 Oddiy narx (5-sanadan o'tgan)"}</p>
             <div className="text-xs space-y-0.5">
@@ -434,7 +485,6 @@ function PaymentModal({ groups, students, courses, preselectedStudent, onSave, o
             </div>
           </div>
 
-          {/* Guruh filtr */}
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">Guruh tanlang</label>
             <select className={ic} value={filterGroup} onChange={e => {
