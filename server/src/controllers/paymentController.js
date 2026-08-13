@@ -5,13 +5,18 @@ exports.getAll = async (req, res, next) => {
     const payments = await prisma.payment.findMany({
       include: {
         student: {
-          select: { id: true, fullName: true, groupId: true, parentPhone: true,
-            group: { select: { id: true, name: true, course: { select: { id: true, name: true, icon: true, color: true } } } }
+          select: {
+            id: true, fullName: true, groupId: true, parentPhone: true,
+            group: {
+              select: {
+                id: true, name: true,
+                course: { select: { id: true, name: true, icon: true, color: true } }
+              }
+            }
           }
         }
       },
       orderBy: { paymentDate: 'desc' },
-      take: 100,
     });
     res.json({ success: true, data: payments });
   } catch (err) { next(err); }
@@ -24,9 +29,11 @@ exports.create = async (req, res, next) => {
 
     const payment = await prisma.payment.create({
       data: {
-        studentId, amount: Number(amount),
+        studentId,
+        amount: Number(amount),
         paymentMethod: paymentMethod || 'CASH',
-        monthFor: monthFor || null, note: note || null,
+        monthFor: monthFor || null,
+        note: note || null,
       },
     });
 
@@ -60,25 +67,27 @@ exports.getStats = async (req, res, next) => {
   try {
     const now = new Date();
     const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-
     const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
     const [totalRevenue, monthlyRevenue, allActive] = await Promise.all([
-  prisma.payment.aggregate({ _sum: { amount: true } }),
-  prisma.payment.aggregate({ _sum: { amount: true }, where: { paymentDate: { gte: thisMonthStart } } }),
-  prisma.student.findMany({
-    where: { status: 'ACTIVE' },
-    include: {
-      group: { include: { course: true } },
-      payments: { where: { monthFor: monthStr } }
-    }
-  }),
-]);
+      prisma.payment.aggregate({ _sum: { amount: true } }),
+      prisma.payment.aggregate({
+        _sum: { amount: true },
+        where: { paymentDate: { gte: thisMonthStart } }
+      }),
+      prisma.student.findMany({
+        where: { status: 'ACTIVE' },
+        include: {
+          group: { include: { course: true } },
+          payments: { where: { monthFor: monthStr } }
+        }
+      }),
+    ]);
 
-// Bu oy uchun to'lov qilmaganlar = qarzdorlar
-const debtors = allActive
-  .filter(s => s.payments.length === 0)
-  .map(s => ({ ...s, balance: -400000, payments: undefined }));
+    // Bu oy uchun to'lov qilmaganlar = qarzdorlar
+    const debtors = allActive
+      .filter(s => s.payments.length === 0)
+      .map(s => ({ ...s, balance: -400000, payments: undefined }));
 
     res.json({
       success: true,
