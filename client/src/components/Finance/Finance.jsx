@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, Filter, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Calendar, Send } from 'lucide-react';
+import { Plus, Trash2, Filter, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Calendar, Send, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { paymentsAPI, groupsAPI, studentsAPI, coursesAPI, smsAPI } from '../../utils/api';
 import { formatMoney } from '../../utils/helpers';
@@ -25,6 +25,7 @@ export default function Finance() {
   const [stats, setStats] = useState(null);
   const [preselectedStudent, setPreselectedStudent] = useState(null);
   const [sendingSms, setSendingSms] = useState({});
+  const [showPaymentsList, setShowPaymentsList] = useState(false); // Yashirilgan bo'ladi
 
   useEffect(() => { loadData(); }, []);
 
@@ -50,13 +51,11 @@ export default function Finance() {
     try { await paymentsAPI.delete(id); toast.success("To'lov o'chirildi!"); loadData(); } catch (e) {}
   };
 
-  // To'lov qabul qilish (tezkor)
   const openPaymentForStudent = (student) => {
     setPreselectedStudent(student);
     setShowModal(true);
   };
 
-  // To'lov eslatma SMS yuborish (qarzdor)
   const sendPaymentReminder = async (student) => {
     if (!student.parentPhone) { toast.error("Telefon raqami yo'q!"); return; }
     if (!confirm(`${student.fullName} ota-onasiga eslatma SMS yuborilsinmi?`)) return;
@@ -73,7 +72,6 @@ export default function Finance() {
     }
   };
 
-  // Tashakkur SMS yuborish (to'lagan)
   const sendThankYouSms = async (student) => {
     if (!student.parentPhone) { toast.error("Telefon raqami yo'q!"); return; }
     if (!confirm(`${student.fullName} ota-onasiga tashakkur SMS yuborilsinmi?`)) return;
@@ -90,7 +88,6 @@ export default function Finance() {
     }
   };
 
-  // Ommaviy eslatma SMS (qarzdorlarga)
   const sendBulkReminder = async (debtors) => {
     if (debtors.length === 0) return;
     if (!confirm(`${debtors.length} ta qarzdor ota-onasiga eslatma SMS yuborilsinmi?`)) return;
@@ -107,7 +104,6 @@ export default function Finance() {
     toast.success(`${sent} ta SMS yuborildi! ${failed > 0 ? `${failed} ta xatolik` : ''}`);
   };
 
-  // Ommaviy tashakkur SMS (to'laganlarga)
   const sendBulkThankYou = async (paid) => {
     if (paid.length === 0) return;
     if (!confirm(`${paid.length} ta to'lagan ota-onaga tashakkur SMS yuborilsinmi?`)) return;
@@ -124,7 +120,6 @@ export default function Finance() {
     toast.success(`${sent} ta tashakkur SMS yuborildi! ${failed > 0 ? `${failed} ta xatolik` : ''}`);
   };
 
-  // Filtrlangan to'lovlar
   const filtered = payments.filter(p => {
     const matchGroup = !filterGroup || p.student?.groupId === filterGroup;
     const matchMonth = !filterMonth || p.monthFor === filterMonth;
@@ -136,7 +131,6 @@ export default function Finance() {
   const today = new Date().getDate();
   const selectedMonth = filterMonth || new Date().toISOString().slice(0, 7);
 
-  // Guruhlar kesimida
   const groupBreakdown = useMemo(() => {
     return groups.map(g => {
       const groupStudents = students.filter(s => s.groupId === g.id && s.status === 'ACTIVE');
@@ -218,7 +212,7 @@ export default function Finance() {
 
       {/* Filtr va Qo'shish */}
       <div className="flex flex-col sm:flex-row justify-between gap-3">
-        <div className="flex gap-3">
+        <div className="flex gap-3 flex-wrap">
           <div className="relative">
             <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <select value={filterGroup} onChange={e => setFilterGroup(e.target.value)}
@@ -244,46 +238,70 @@ export default function Finance() {
         </button>
       </div>
 
-      {/* To'lovlar jadvali */}
+      {/* To'lovlar jadvali (YASHIRILGAN — tugma orqali ochiladi) */}
       <div className="bg-white rounded-2xl border border-gray-200">
         <div className="p-4 border-b flex justify-between items-center">
-          <h3 className="font-bold">So'nggi to'lovlar</h3>
-          <span className="text-sm text-gray-500">{filtered.length} ta to'lov</span>
+          <div className="flex items-center gap-3">
+            <h3 className="font-bold">So'nggi to'lovlar</h3>
+            <span className="text-sm text-gray-500">{filtered.length} ta to'lov</span>
+          </div>
+          <button onClick={() => setShowPaymentsList(!showPaymentsList)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+              showPaymentsList
+                ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                : 'bg-teal-600 text-white hover:bg-teal-700'
+            }`}>
+            {showPaymentsList ? (
+              <><EyeOff size={16} /> Yashirish</>
+            ) : (
+              <><Eye size={16} /> Ko'rish</>
+            )}
+          </button>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead><tr className="bg-gray-50">
-              {['#', "O'quvchi", 'Guruh', 'Summa', "To'lov turi", 'Sana', 'Oy uchun', 'Izoh', 'Amal'].map(h =>
-                <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>)}
-            </tr></thead>
-            <tbody>{filtered.map((p, i) => (
-              <tr key={p.id} className="border-t border-gray-50 hover:bg-gray-50/50">
-                <td className="px-3 py-3 text-gray-400">{i + 1}</td>
-                <td className="px-3 py-3 font-semibold">{p.student?.fullName || '—'}</td>
-                <td className="px-3 py-3">
-                  <span className="text-xs px-2 py-1 rounded-lg font-semibold" style={{ background: `${p.student?.group?.course?.color}15`, color: p.student?.group?.course?.color }}>
-                    {p.student?.group?.course?.icon} {p.student?.group?.name || '—'}
-                  </span>
-                </td>
-                <td className="px-3 py-3 font-bold text-green-600">+{formatMoney(p.amount)}</td>
-                <td className="px-3 py-3">
-                  <span className={`text-xs px-2 py-1 rounded-lg font-semibold ${
-                    p.paymentMethod === 'CASH' ? 'bg-green-50 text-green-700' :
-                    p.paymentMethod === 'CLICK' ? 'bg-blue-50 text-blue-700' :
-                    p.paymentMethod === 'PAYME' ? 'bg-cyan-50 text-cyan-700' : 'bg-gray-50 text-gray-700'
-                  }`}>{p.paymentMethod === 'CASH' ? 'Naqd' : p.paymentMethod}</span>
-                </td>
-                <td className="px-3 py-3 text-gray-500 text-xs">{new Date(p.paymentDate).toLocaleDateString('uz-UZ')}</td>
-                <td className="px-3 py-3 text-gray-600">{p.monthFor || '—'}</td>
-                <td className="px-3 py-3 text-gray-400 text-xs">{p.note || '—'}</td>
-                <td className="px-3 py-3">
-                  <button onClick={() => handleDelete(p.id)} className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100" title="O'chirish"><Trash2 size={14} /></button>
-                </td>
-              </tr>
-            ))}</tbody>
-          </table>
-        </div>
-        {filtered.length === 0 && <p className="text-center text-gray-400 py-10">To'lov topilmadi</p>}
+        {showPaymentsList && (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="bg-gray-50">
+                  {['#', "O'quvchi", 'Guruh', 'Summa', "To'lov turi", 'Sana', 'Oy uchun', 'Izoh', 'Amal'].map(h =>
+                    <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>)}
+                </tr></thead>
+                <tbody>{filtered.map((p, i) => (
+                  <tr key={p.id} className="border-t border-gray-50 hover:bg-gray-50/50">
+                    <td className="px-3 py-3 text-gray-400">{i + 1}</td>
+                    <td className="px-3 py-3 font-semibold">{p.student?.fullName || '—'}</td>
+                    <td className="px-3 py-3">
+                      <span className="text-xs px-2 py-1 rounded-lg font-semibold" style={{ background: `${p.student?.group?.course?.color}15`, color: p.student?.group?.course?.color }}>
+                        {p.student?.group?.course?.icon} {p.student?.group?.name || '—'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 font-bold text-green-600">+{formatMoney(p.amount)}</td>
+                    <td className="px-3 py-3">
+                      <span className={`text-xs px-2 py-1 rounded-lg font-semibold ${
+                        p.paymentMethod === 'CASH' ? 'bg-green-50 text-green-700' :
+                        p.paymentMethod === 'CLICK' ? 'bg-blue-50 text-blue-700' :
+                        p.paymentMethod === 'PAYME' ? 'bg-cyan-50 text-cyan-700' : 'bg-gray-50 text-gray-700'
+                      }`}>{p.paymentMethod === 'CASH' ? 'Naqd' : p.paymentMethod}</span>
+                    </td>
+                    <td className="px-3 py-3 text-gray-500 text-xs">{new Date(p.paymentDate).toLocaleDateString('uz-UZ')}</td>
+                    <td className="px-3 py-3 text-gray-600">{p.monthFor || '—'}</td>
+                    <td className="px-3 py-3 text-gray-400 text-xs">{p.note || '—'}</td>
+                    <td className="px-3 py-3">
+                      <button onClick={() => handleDelete(p.id)} className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100" title="O'chirish"><Trash2 size={14} /></button>
+                    </td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+            {filtered.length === 0 && <p className="text-center text-gray-400 py-10">To'lov topilmadi</p>}
+          </>
+        )}
+        {!showPaymentsList && (
+          <div className="p-8 text-center">
+            <p className="text-gray-400 text-sm">🔒 To'lovlar ro'yxati yashirilgan</p>
+            <p className="text-xs text-gray-300 mt-1">Ko'rish uchun yuqoridagi "Ko'rish" tugmasini bosing</p>
+          </div>
+        )}
       </div>
 
       {/* Guruhlar kesimida */}
@@ -318,7 +336,6 @@ export default function Finance() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      {/* Tashakkur SMS */}
                       {paid.length > 0 && (
                         <button onClick={() => sendBulkThankYou(paid)}
                           className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-semibold hover:bg-green-700"
@@ -326,7 +343,6 @@ export default function Finance() {
                           <Send size={12} /> {paid.length} ta tashakkur
                         </button>
                       )}
-                      {/* Qarzdorlarga eslatma */}
                       {debtors.length > 0 && (
                         <button onClick={() => sendBulkReminder(debtors)}
                           className="flex items-center gap-1 px-3 py-1.5 bg-yellow-500 text-white rounded-lg text-xs font-semibold hover:bg-yellow-600"

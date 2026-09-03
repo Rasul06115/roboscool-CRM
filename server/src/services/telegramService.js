@@ -17,7 +17,6 @@ const initBot = () => {
     const ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID;
     const isAdmin = (chatId) => String(chatId) === String(ADMIN_CHAT_ID);
 
-    // Foydalanuvchini saqlash
     const saveUser = async (msg) => {
       try {
         await prisma.botUser.upsert({
@@ -33,7 +32,6 @@ const initBot = () => {
       } catch (e) { /* ignore */ }
     };
 
-    // Uzun xabarni bo'laklarga ajratib yuborish (Telegram limiti 4096 belgi)
     const sendLongMessage = async (chatId, text) => {
       if (text.length <= 4096) {
         await bot.sendMessage(chatId, text);
@@ -45,7 +43,6 @@ const initBot = () => {
       }
     };
 
-    // /start
     bot.onText(/\/start/, async (msg) => {
       const chatId = msg.chat.id;
       await saveUser(msg);
@@ -58,11 +55,10 @@ const initBot = () => {
           `Admin buyruqlari:\n` +
           `/stats — Statistika\n` +
           `/debtors — Qarzdorlar\n` +
-          `/users — Foydalanuvchilar ro'yxati\n` +
-          `/reklama — Ommaviy xabar yuborish\n` +
-          `/bekor — Reklamani bekor qilish\n\n` +
-          `Ota-onalar uchun:\n` +
-          `O'quvchi ismini yozing — natijalar qaytariladi.`
+          `/users — Foydalanuvchilar\n` +
+          `/reklama — Ommaviy xabar\n` +
+          `/bekor — Bekor qilish\n\n` +
+          `Ota-onalar uchun: O'quvchi ismini yozing.`
         );
       } else {
         bot.sendMessage(chatId,
@@ -74,28 +70,15 @@ const initBot = () => {
       }
     });
 
-    // Admin: Foydalanuvchilar ro'yxati
     bot.onText(/\/(users?|foydalanuvchilar)/i, async (msg) => {
-      if (!isAdmin(msg.chat.id)) {
-        return bot.sendMessage(msg.chat.id, '⛔ Bu buyruq faqat admin uchun.');
-      }
+      if (!isAdmin(msg.chat.id)) return bot.sendMessage(msg.chat.id, '⛔ Bu buyruq faqat admin uchun.');
       try {
-        let users = [];
-        try {
-          users = await prisma.botUser.findMany({ orderBy: { createdAt: 'desc' } });
-        } catch (dbErr) {
-          logger.error('BotUser table error:', dbErr.message);
-          return bot.sendMessage(msg.chat.id, '⚠️ bot_users jadvali topilmadi. Neon SQL da yarating.');
-        }
-
+        const users = await prisma.botUser.findMany({ orderBy: { createdAt: 'desc' } });
         const total = users.length;
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const today = new Date(); today.setHours(0, 0, 0, 0);
         const todayCount = users.filter(u => new Date(u.createdAt) >= today).length;
 
-        if (total === 0) {
-          return bot.sendMessage(msg.chat.id, '👥 Hali hech kim /start bosmagan.');
-        }
+        if (total === 0) return bot.sendMessage(msg.chat.id, '👥 Hali hech kim /start bosmagan.');
 
         let list = '';
         users.forEach((u, i) => {
@@ -114,32 +97,24 @@ const initBot = () => {
       }
     });
 
-    // Reklama rejimi
     let waitingForBroadcast = false;
 
     bot.onText(/\/reklama/, async (msg) => {
-      if (!isAdmin(msg.chat.id)) {
-        return bot.sendMessage(msg.chat.id, '⛔ Bu buyruq faqat admin uchun.');
-      }
+      if (!isAdmin(msg.chat.id)) return bot.sendMessage(msg.chat.id, '⛔ Bu buyruq faqat admin uchun.');
       const total = await prisma.botUser.count().catch(() => 0);
       waitingForBroadcast = true;
-      bot.sendMessage(msg.chat.id,
-        `📢 Ommaviy xabar yuborish\n\n👥 ${total} ta foydalanuvchiga yuboriladi.\n\nXabar matnini yozing (yoki /bekor qiling):`
-      );
+      bot.sendMessage(msg.chat.id, `📢 Ommaviy xabar\n\n👥 ${total} ta foydalanuvchiga yuboriladi.\n\nMatnni yozing (yoki /bekor):`);
     });
 
     bot.onText(/\/bekor/, (msg) => {
       if (isAdmin(msg.chat.id) && waitingForBroadcast) {
         waitingForBroadcast = false;
-        bot.sendMessage(msg.chat.id, '❌ Reklama bekor qilindi.');
+        bot.sendMessage(msg.chat.id, '❌ Bekor qilindi.');
       }
     });
 
-    // Admin: Statistika
     bot.onText(/\/stats/, async (msg) => {
-      if (!isAdmin(msg.chat.id)) {
-        return bot.sendMessage(msg.chat.id, '⛔ Bu buyruq faqat admin uchun.');
-      }
+      if (!isAdmin(msg.chat.id)) return bot.sendMessage(msg.chat.id, '⛔ Bu buyruq faqat admin uchun.');
       try {
         const [students, payments, leads] = await Promise.all([
           prisma.student.count({ where: { status: 'ACTIVE' } }),
@@ -157,16 +132,13 @@ const initBot = () => {
           `📞 Yangi leadlar: ${leads}`
         );
       } catch (err) {
-        logger.error('Telegram stats error:', err);
-        bot.sendMessage(msg.chat.id, '❌ Xatolik yuz berdi.');
+        logger.error('Stats error:', err);
+        bot.sendMessage(msg.chat.id, '❌ Xatolik.');
       }
     });
 
-    // Admin: Qarzdorlar
     bot.onText(/\/debtors/, async (msg) => {
-      if (!isAdmin(msg.chat.id)) {
-        return bot.sendMessage(msg.chat.id, '⛔ Bu buyruq faqat admin uchun.');
-      }
+      if (!isAdmin(msg.chat.id)) return bot.sendMessage(msg.chat.id, '⛔ Bu buyruq faqat admin uchun.');
       try {
         const debtors = await prisma.student.findMany({
           where: { balance: { lt: 0 }, status: 'ACTIVE' },
@@ -174,17 +146,15 @@ const initBot = () => {
           orderBy: { balance: 'asc' },
           take: 10,
         });
-        if (debtors.length === 0) {
-          return bot.sendMessage(msg.chat.id, '🎉 Qarzdor yo\'q!');
-        }
-        let text = '⚠️ Qarzdorlar ro\'yxati\n\n';
+        if (debtors.length === 0) return bot.sendMessage(msg.chat.id, '🎉 Qarzdor yo\'q!');
+        let text = '⚠️ Qarzdorlar\n\n';
         debtors.forEach((d, i) => {
           text += `${i + 1}. ${d.fullName} — ${d.group?.name || '—'}\n`;
           text += `   📞 ${d.parentPhone} | 💰 ${(Math.abs(d.balance) / 1000).toLocaleString()}k so'm\n\n`;
         });
         bot.sendMessage(msg.chat.id, text);
       } catch (err) {
-        logger.error('Telegram debtors error:', err);
+        logger.error('Debtors error:', err);
       }
     });
 
@@ -198,32 +168,27 @@ const initBot = () => {
 
       await saveUser(msg);
 
-      // ===== REKLAMA YUBORISH =====
+      // Reklama yuborish
       if (isAdmin(chatId) && waitingForBroadcast) {
         waitingForBroadcast = false;
         const users = await prisma.botUser.findMany();
         let sent = 0, failed = 0;
-
         bot.sendMessage(chatId, `📤 Yuborilmoqda... ${users.length} ta foydalanuvchiga`);
-
         for (const user of users) {
           try {
             await sendLongMessage(user.chatId, text);
             sent++;
           } catch (e) {
             failed++;
-            logger.error(`Broadcast fail to ${user.chatId}: ${e.message}`);
+            logger.error(`Broadcast fail: ${e.message}`);
           }
           await new Promise(r => setTimeout(r, 50));
         }
-
-        bot.sendMessage(chatId,
-          `✅ Reklama yuborildi!\n\n📨 Yuborildi: ${sent}\n❌ Xatolik: ${failed}\n👥 Jami: ${users.length}`
-        );
+        bot.sendMessage(chatId, `✅ Yuborildi!\n\n📨 ${sent}\n❌ ${failed}\n👥 Jami: ${users.length}`);
         return;
       }
 
-      // ===== OTA-ONA QIDIRISH =====
+      // Ota-ona qidiruvi
       try {
         const words = text.split(/\s+/).filter(w => w.length >= 2);
         let students = [];
@@ -234,7 +199,7 @@ const initBot = () => {
               where: { status: 'ACTIVE', AND: words.map(w => ({ fullName: { contains: w, mode: 'insensitive' } })) },
               include: { group: { include: { course: true } } },
             });
-          } catch (e) { logger.error('Search AND error:', e.message); }
+          } catch (e) { logger.error('Search AND:', e.message); }
 
           if (students.length === 0) {
             try {
@@ -242,7 +207,7 @@ const initBot = () => {
                 where: { status: 'ACTIVE', OR: words.map(w => ({ fullName: { contains: w, mode: 'insensitive' } })) },
                 include: { group: { include: { course: true } } },
               });
-            } catch (e) { logger.error('Search OR error:', e.message); }
+            } catch (e) { logger.error('Search OR:', e.message); }
           }
         }
 
@@ -252,6 +217,12 @@ const initBot = () => {
 
         const ratingEmoji = { POOR: '🔴', AVERAGE: '🟡', GOOD: '🟢', EXCELLENT: '⭐' };
         const ratingLabel = { POOR: 'Qoniqarsiz', AVERAGE: "O'rta", GOOD: 'Yaxshi', EXCELLENT: "A'lo" };
+
+        // Bu oy va yil boshlanishlari
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const yearStart = new Date(now.getFullYear(), 0, 1);
+        const monthName = now.toLocaleDateString('uz-UZ', { month: 'long', year: 'numeric' });
 
         for (const student of students) {
           try {
@@ -265,6 +236,24 @@ const initBot = () => {
             ];
             const level = levels.find(l => totalPoints >= l.min && totalPoints <= l.max) || levels[0];
 
+            // Bu oy va yillik ballari
+            let monthPoints = 0;
+            let yearPoints = 0;
+            try {
+              const monthAch = await prisma.achievement.aggregate({
+                _sum: { points: true },
+                where: { studentId: student.id, createdAt: { gte: monthStart } },
+              });
+              monthPoints = monthAch._sum.points || 0;
+
+              const yearAch = await prisma.achievement.aggregate({
+                _sum: { points: true },
+                where: { studentId: student.id, createdAt: { gte: yearStart } },
+              });
+              yearPoints = yearAch._sum.points || 0;
+            } catch (e) { /* ignore */ }
+
+            // Davomat
             let attRate = 0, presentAtt = 0, totalAtt = 0;
             try {
               const records = await prisma.attendance.findMany({ where: { studentId: student.id }, take: 30, orderBy: { date: 'desc' } });
@@ -273,15 +262,19 @@ const initBot = () => {
               attRate = totalAtt > 0 ? Math.round((presentAtt / totalAtt) * 100) : 0;
             } catch (e) { /* ignore */ }
 
+            // Yutuqlar
             let achievementText = '';
             try {
               const achievements = await prisma.achievement.findMany({ where: { studentId: student.id }, orderBy: { createdAt: 'desc' }, take: 5 });
               if (achievements.length > 0) {
                 achievementText = '\n📋 So\'nggi yutuqlar:\n';
-                achievements.forEach(a => { achievementText += `  ${a.points >= 0 ? '+' : ''}${a.points} ball - ${a.title || 'Yutuq'}\n`; });
+                achievements.forEach(a => {
+                  achievementText += `  ${a.points >= 0 ? '+' : ''}${a.points} ball - ${a.title || 'Yutuq'}\n`;
+                });
               }
             } catch (e) { /* ignore */ }
 
+            // Baholash
             let evalText = '';
             try {
               const evals = await prisma.studentEvaluation.findMany({ where: { studentId: student.id }, orderBy: { period: 'desc' }, take: 1 });
@@ -302,6 +295,8 @@ const initBot = () => {
               `👤 ${student.fullName}\n\n` +
               `${level.emoji} Daraja: ${level.name}\n` +
               `⭐ Umumiy ball: ${totalPoints}\n` +
+              `📆 Bu oy (${monthName}): ${monthPoints >= 0 ? '+' : ''}${monthPoints} ball\n` +
+              `📅 Yillik (${now.getFullYear()}): ${yearPoints >= 0 ? '+' : ''}${yearPoints} ball\n` +
               `📚 Kurs: ${student.group?.course?.name || '—'}\n` +
               `👥 Guruh: ${student.group?.name || '—'}\n` +
               `📊 Davomat: ${attRate}% (${presentAtt}/${totalAtt})\n` +
@@ -363,4 +358,4 @@ const sendDebtReminder = async (parentPhone, studentName, debtAmount, telegramId
   }
 };
 
-module.exports = { initBot, sendMessage, notifyAdmin, notifyPayment, notifyNewLead, sendDebtReminder }; 
+module.exports = { initBot, sendMessage, notifyAdmin, notifyPayment, notifyNewLead, sendDebtReminder };   
