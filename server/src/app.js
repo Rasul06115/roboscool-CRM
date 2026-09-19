@@ -11,8 +11,10 @@ const path = require('path');
 const routes = require('./routes');
 const errorHandler = require('./middleware/errorHandler');
 const logger = require('./config/logger');
+const prisma = require('./config/prisma');                       // ⬅️ QO'SHILDI
 const telegramService = require('./services/telegramService');
 const { initJobs } = require('./jobs/scheduler');
+const parentsActivity = require('./parents-activity');           // ⬅️ QO'SHILDI
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -69,8 +71,13 @@ app.use(errorHandler);
 // ==================== START SERVER ====================
 const startServer = async () => {
   try {
-    // Telegram bot
-    telegramService.initBot();
+    // Telegram bot (bot instansiyasini olamiz)
+    const bot = telegramService.initBot();                       // ⬅️ O'ZGARDI (const bot = ...)
+
+    // Ota-onalar aktivlik modulini ulash
+    if (bot) {                                                    // ⬅️ QO'SHILDI
+      parentsActivity.init({ bot, prisma, logger });             // ⬅️ QO'SHILDI
+    }                                                            // ⬅️ QO'SHILDI
 
     // Cron jobs
     initJobs();
@@ -88,6 +95,7 @@ const startServer = async () => {
      📱 SMS:       ${process.env.SMS_EMAIL && process.env.SMS_EMAIL !== 'your_email@example.com' ? 'Active ✅' : 'Demo mode ⚠️'}
      📁 Uploads:   ${process.env.UPLOAD_DIR || './uploads'}
      ⏰ Cron:      Active ✅
+     👪 Parents:   Module active ✅
      ───────────────────────────────────────────────
      🚀 API:       http://localhost:${PORT}/api
   ═══════════════════════════════════════════════ 🤖

@@ -355,3 +355,64 @@ model NotificationLog {
 
   @@map("notification_logs")
 }
+
+
+// Ota-ona (telegramId) ↔ o'quvchi (studentId) bog'lanishi
+model ParentLink {
+  id          String   @id @default(uuid())
+  telegramId  String   @map("telegram_id")
+  studentId   String   @map("student_id")
+  studentName String?  @map("student_name")
+  linkedVia   String   @default("auto_lookup") @map("linked_via") // "auto_lookup" | "manual"
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([telegramId, studentId])
+  @@index([telegramId])
+  @@index([studentId])
+  @@map("parent_links")
+}
+
+// Ota-onaning guruhdagi haftalik aktivligi
+model ParentGroupActivity {
+  id            String   @id @default(uuid())
+  telegramId    String   @map("telegram_id")
+  chatId        String   @map("chat_id")
+  weekStart     DateTime @map("week_start") @db.Date
+  messageCount  Int      @default(0) @map("message_count")
+  lastMessageAt DateTime @map("last_message_at")
+  rewarded      Boolean  @default(false)
+  reminded      Boolean  @default(false)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@unique([telegramId, chatId, weekStart])
+  @@index([weekStart])
+  @@index([telegramId])
+  @@map("parent_group_activity")
+}
+
+// Kanal obunasi holati
+model ParentSubscriptionCheck {
+  id                         String    @id @default(uuid())
+  telegramId                 String    @unique @map("telegram_id")
+  subscribedRoboschoolChinoz Boolean   @default(false) @map("subscribed_roboschool_chinoz")
+  subscribedRoboschoolMarket Boolean   @default(false) @map("subscribed_roboschool_market")
+  notifiedAt                 DateTime? @map("notified_at")
+  lastCheckedAt              DateTime  @default(now()) @map("last_checked_at")
+  createdAt                  DateTime  @default(now()) @map("created_at")
+
+  @@map("parent_subscription_check")
+}
+
+// Bot yuborgan xabarlar tarixi (takror yubormaslik uchun)
+model ParentBotNotification {
+  id         String   @id @default(uuid())
+  telegramId String   @map("telegram_id")
+  chatId     String   @map("chat_id")
+  type       String   // "INACTIVITY_REPLY" | "REWARD_REPLY" | "SUBSCRIPTION_REMINDER"
+  messageId  Int?     @map("message_id")
+  sentAt     DateTime @default(now()) @map("sent_at")
+
+  @@index([telegramId, type, sentAt])
+  @@map("parent_bot_notifications")
+}
