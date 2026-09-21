@@ -44,6 +44,9 @@ const initBot = () => {
     };
 
     bot.onText(/\/start/, async (msg) => {
+      // Faqat shaxsiy chatda javob beramiz (guruhda /start ga javob bermaymiz)
+      if (msg.chat.type !== 'private') return;
+
       const chatId = msg.chat.id;
       await saveUser(msg);
 
@@ -71,6 +74,7 @@ const initBot = () => {
     });
 
     bot.onText(/\/(users?|foydalanuvchilar)/i, async (msg) => {
+      if (msg.chat.type !== 'private') return;
       if (!isAdmin(msg.chat.id)) return bot.sendMessage(msg.chat.id, '⛔ Bu buyruq faqat admin uchun.');
       try {
         const users = await prisma.botUser.findMany({ orderBy: { createdAt: 'desc' } });
@@ -100,6 +104,7 @@ const initBot = () => {
     let waitingForBroadcast = false;
 
     bot.onText(/\/reklama/, async (msg) => {
+      if (msg.chat.type !== 'private') return;
       if (!isAdmin(msg.chat.id)) return bot.sendMessage(msg.chat.id, '⛔ Bu buyruq faqat admin uchun.');
       const total = await prisma.botUser.count().catch(() => 0);
       waitingForBroadcast = true;
@@ -107,6 +112,7 @@ const initBot = () => {
     });
 
     bot.onText(/\/bekor/, (msg) => {
+      if (msg.chat.type !== 'private') return;
       if (isAdmin(msg.chat.id) && waitingForBroadcast) {
         waitingForBroadcast = false;
         bot.sendMessage(msg.chat.id, '❌ Bekor qilindi.');
@@ -114,6 +120,7 @@ const initBot = () => {
     });
 
     bot.onText(/\/stats/, async (msg) => {
+      if (msg.chat.type !== 'private') return;
       if (!isAdmin(msg.chat.id)) return bot.sendMessage(msg.chat.id, '⛔ Bu buyruq faqat admin uchun.');
       try {
         const [students, payments, leads] = await Promise.all([
@@ -138,6 +145,7 @@ const initBot = () => {
     });
 
     bot.onText(/\/debtors/, async (msg) => {
+      if (msg.chat.type !== 'private') return;
       if (!isAdmin(msg.chat.id)) return bot.sendMessage(msg.chat.id, '⛔ Bu buyruq faqat admin uchun.');
       try {
         const debtors = await prisma.student.findMany({
@@ -165,6 +173,10 @@ const initBot = () => {
       const chatId = msg.chat.id;
       const text = msg.text?.trim();
       if (!text || text.startsWith('/')) return;
+
+      // MUHIM: Ota-ona qidiruvi FAQAT shaxsiy chatda ishlaydi.
+      // Guruhda bot javob bermaydi (guruh aktivligi alohida modul tomonidan hisoblanadi).
+      if (msg.chat.type !== 'private') return;
 
       await saveUser(msg);
 
@@ -358,4 +370,4 @@ const sendDebtReminder = async (parentPhone, studentName, debtAmount, telegramId
   }
 };
 
-module.exports = { initBot, sendMessage, notifyAdmin, notifyPayment, notifyNewLead, sendDebtReminder };   
+module.exports = { initBot, sendMessage, notifyAdmin, notifyPayment, notifyNewLead, sendDebtReminder };
