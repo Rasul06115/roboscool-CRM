@@ -4,7 +4,18 @@ const state = require('../state');
 const config = require('../config');
 const scheduler = require('../jobs/scheduler');
 const link = require('../services/link');
-const { currentWeekStart, previousWeekStart, formatWeek } = require('../utils/time');
+const topReward = require('../services/topReward');
+const { escapeHtml } = require('../services/notification');
+const {
+  currentWeekStart,
+  previousWeekStart,
+  formatWeek,
+  currentPeriod,
+  previousPeriod,
+  shiftPeriod,
+  isValidPeriod,
+  periodLabel,
+} = require('../utils/time');
 
 function isAdmin(msg) {
   return msg?.from && String(msg.from.id) === String(config.adminChatId);
@@ -42,6 +53,10 @@ function register() {
         `<b>Bog'lash:</b>\n` +
         `<code>/parents_link 123456789 Aziz Karimov</code>\n` +
         `<code>/parents_unlink 123456789</code>\n\n` +
+        `<b>TOP-${config.topCount} chegirma (${config.topDiscountPercent}%):</b>\n` +
+        `/parents_top5 — joriy oy reytingi (oldindan ko'rish)\n` +
+        `/parents_run_top5 — o'tgan oy TOP'ini e'lon qilish\n` +
+        `<code>/parents_run_top5 2026-09</code> — aniq oy uchun\n\n` +
         `<b>Guruh:</b>\n` +
         `/parents_groups — guruhlar ro'yxati\n` +
         `/parents_chatid — chat ID (istalgan chatda)`
@@ -200,6 +215,65 @@ function register() {
     } catch (err) {
       logger.error('[parents] run_subs', { error: err.message });
       await reply(msg.chat.id, `❌ Xato: ${err.message}`);
+    }
+  });
+
+  // /parents_top5 — joriy oy reytingini oldindan ko'rish (hech narsa yozilmaydi)
+  bot.onText(/^\/parents_top5(?:@\w+)?$/, async (msg) => {
+    if (msg.chat.type !== 'private' || !isAdmin(msg)) return;
+    try {
+      const period = currentPeriod();
+      const { top, next } = await topReward.computeRanking(period);
+      if (top.length === 0) {
+        await reply(msg.chat.id, `📭 ${periodLabel(period)}: hali ball berilmagan.`);
+        return;
+      }
+      const lines = top.map(
+        (w) => `${topReward.MEDALS[w.rank - 1] || w.rank + '.'} ${escapeHtml(w.fullName)} — <b>${w.points}</b> ball` +
+          (w.groupName ? ` <i>(${escapeHtml(w.groupName)})</i>` : '')
+      );
+      let text =
+        `📊 <b>${periodLabel(period)} — joriy TOP-${config.topCount}</b>\n` +
+        `<i>(oy hali tugamagan, natija o'zgarishi mumkin)</i>\n\n` +
+        lines.join('\n');
+      if (next) text += `\n\n➡️ Keyingi: ${escapeHtml(next.fullName)} — ${next.points} ball`;
+      text += `\n\n🎁 Oy yakunida ${periodLabel(shiftPeriod(period, 1))} uchun ${config.topDiscountPercent}% chegirma e'lon qilinadi.`;
+      await reply(msg.chat.id, text);
+    } catch (err) {
+      logger.error('[parents] top5 preview', { error: err.message });
+      await reply(msg.chat.id, `❌ Xato: ${err.message}`);
+    }
+  });
+
+  // /parents_run_top5 [YYYY-MM] — e'lon qilish (jadvalga yozadi + ota-onalarga xabar)
+  bot.onText(/^\/parents_run_top5(?:@\w+)?(?:\s+(\S+))?$/, async (msg, match) => {
+    if (msg.chat.type !== 'private' || !isAdmin(msg)) return;
+    const arg = match && match[1] ? match[1].trim() : null;
+    if (arg && !isValidPeriod(arg)) {
+      await reply(msg.chat.id, `⚠️ Oy formati: <code>YYYY-MM</code>, masalan <code>/parents_run_top5 2026-09</code>`);
+      return;
+    }
+    const period = arg || previousPeriod();
+    await reply(msg.chat.id, `⏳ ${periodLabel(period)} TOP-${config.topCount} e'lon qilinmoqda...`);
+    try {
+      const r = await topReward.runMonthlyTop(period);
+      if (r.winners.length === 0) {
+        await reply(msg.chat.id, `📭 ${periodLabel(period)}: ball berilmagan, TOP yo'q.`);
+        return;
+      }
+      await reply(
+        msg.chat.id,
+        `✅ Yakunlandi (batafsil hisobot yuqorida).\n` +
+          `Yangi yozildi: <b>${r.created}</b>\n` +
+          `Oldin yozilgan: <b>${r.alreadyExisted}</b>\n` +
+          `Xabar yuborildi: <b>${r.notified}</b>`
+      );
+    } catch (err) {
+      logger.error('[parents] run_top5', { error: err.message });
+      const hint = String(err.message).includes('monthly_discounts')
+        ? `\n\nℹ️ <code>monthly_discounts</code> jadvali yaratilmagan — SQL ni Neon'da ishga tushiring.`
+        : '';
+      await reply(msg.chat.id, `❌ Xato: ${err.message}${hint}`);
     }
   });
 

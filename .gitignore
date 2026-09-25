@@ -8,3 +8,5 @@ uploads/avatars/*
 uploads/documents/*
 !uploads/avatars/.gitkeep
 !uploads/documents/.gitkeep
+
+.vs/

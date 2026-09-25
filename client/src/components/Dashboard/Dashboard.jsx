@@ -1,11 +1,27 @@
 import { useState, useEffect, useMemo } from 'react';
-import { AlertTriangle, Eye, EyeOff, Search } from 'lucide-react';
-import { dashboardAPI, achievementsAPI } from '../../utils/api';
+import { AlertTriangle, Eye, EyeOff, Search, Gift, Check } from 'lucide-react';
+import toast from 'react-hot-toast';
+import api, { dashboardAPI, achievementsAPI } from '../../utils/api';
 import { formatMoney } from '../../utils/helpers';
+import { useAuth } from '../../context/AuthContext';
 
 // Yashirish holati brauzerda eslab qolinadi (default: yashirin)
 const HIDE_KEY = 'dashboard_hide_stats';
 const HIDDEN = '••••••';
+const TOP_COUNT = 5;
+const DISCOUNT_PERCENT = 40;
+
+const MONTHS_UZ = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr'];
+
+// Toshkent vaqti bo'yicha joriy oy: "YYYY-MM"
+function currentPeriodTashkent() {
+  const t = new Date(Date.now() + 5 * 60 * 60 * 1000);
+  return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+function nextMonthName(period) {
+  const m = Number(period.slice(5, 7)); // 1..12, keyingi oy indeksi = m
+  return MONTHS_UZ[m % 12];
+}
 
 function readHidden() {
   try {
@@ -24,14 +40,35 @@ export default function Dashboard() {
   const [hidden, setHidden] = useState(readHidden);
   const [search, setSearch] = useState('');
   const [showAll, setShowAll] = useState(false);
+  const [discounts, setDiscounts] = useState([]);
+  const [discountMonth] = useState(currentPeriodTashkent);
+  const [savingId, setSavingId] = useState(null);
+  const { user } = useAuth();
+  const canApply = user?.role === 'ADMIN' || user?.role === 'MANAGER';
 
   useEffect(() => {
     Promise.all([
       dashboardAPI.getOverview().then(r => setData(r.data)).catch(() => {}),
       achievementsAPI.getNominations().then(r => setNominations(r.data)).catch(() => {}),
       achievementsAPI.getLeaderboard().then(r => setLeaderboard(Array.isArray(r.data) ? r.data : [])).catch(() => {}),
+      api.get('/rewards/discounts', { params: { validMonth: discountMonth } })
+        .then(r => setDiscounts(Array.isArray(r.data) ? r.data : []))
+        .catch(() => {}),
     ]).finally(() => setLoading(false));
-  }, []);
+  }, [discountMonth]);
+
+  const toggleApplied = async (d) => {
+    setSavingId(d.id);
+    try {
+      await api.patch(`/rewards/discounts/${d.id}`, { applied: !d.applied });
+      setDiscounts(list => list.map(x => (x.id === d.id ? { ...x, applied: !d.applied } : x)));
+      toast.success(!d.applied ? "Chegirma qo'llanildi deb belgilandi" : 'Belgi olib tashlandi');
+    } catch (_) {
+      toast.error('Saqlab bo\'lmadi');
+    } finally {
+      setSavingId(null);
+    }
+  };
 
   const toggleHidden = () => {
     setHidden(prev => {
@@ -107,6 +144,9 @@ export default function Dashboard() {
                   <p className="text-amber-100 text-sm">{nominations.monthLabel}</p>
                 </div>
               </div>
+              <p className="mt-3 text-xs font-semibold bg-white/20 rounded-lg px-3 py-1.5 inline-flex items-center gap-1.5">
+                🎁 TOP-{TOP_COUNT} ga {nextMonthName(discountMonth)} oyi uchun {DISCOUNT_PERCENT}% chegirma
+              </p>
             </div>
             <div className="p-5">
               {nominations.monthly.length === 0 ? (
@@ -131,6 +171,9 @@ export default function Dashboard() {
                         <p className={`font-extrabold ${i === 0 ? 'text-amber-700 text-lg' : 'text-gray-600 text-sm'}`}>
                           +{s.monthlyPoints} ⭐
                         </p>
+                        {i < TOP_COUNT && (
+                          <span className="inline-block mt-0.5 text-[10px] font-bold text-rose-600 bg-rose-50 rounded px-1.5">🎁 {DISCOUNT_PERCENT}%</span>
+                        )}
                         <p className="text-[10px] text-gray-400">jami: {s.totalPoints}</p>
                       </div>
                     </div>
@@ -181,6 +224,56 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Shu oy amal qiladigan TOP chegirmalar */}
+      {discounts.length > 0 && (
+        <div className="bg-white rounded-2xl border border-rose-200 overflow-hidden">
+          <div className="p-5 bg-gradient-to-r from-rose-500 to-pink-500 text-white">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center"><Gift size={24} /></div>
+                <div>
+                  <h3 className="font-extrabold text-lg">{discounts[0].discountPercent}% chegirma — {discounts[0].validMonthLabel}</h3>
+                  <p className="text-rose-100 text-sm">{discounts[0].periodLabel} oyining TOP-{discounts.length} o'quvchisi</p>
+                </div>
+              </div>
+              <span className="text-xs font-bold bg-white/20 rounded-full px-3 py-1 shrink-0">
+                {discounts.filter(d => d.applied).length}/{discounts.length} qo'llanildi
+              </span>
+            </div>
+          </div>
+          <div className="p-5 space-y-2">
+            {discounts.map(d => (
+              <div key={d.id} className={`flex items-center justify-between gap-3 p-3 rounded-xl border ${d.applied ? 'bg-green-50 border-green-200' : 'bg-white border-gray-100'}`}>
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="text-xl w-8 text-center shrink-0">{rankMedals[d.rank - 1] || `${d.rank}.`}</span>
+                  <div className="min-w-0">
+                    <p className="font-bold text-sm text-gray-800 truncate">{d.studentName}</p>
+                    <p className="text-[10px] text-gray-400 truncate">
+                      {d.groupName || '—'} • {d.points} ball • {d.notifiedCount > 0 ? '✉️ ota-onaga xabar ketdi' : "⚠️ ota-onaga xabar ketmagan"}
+                    </p>
+                  </div>
+                </div>
+                {canApply ? (
+                  <button
+                    onClick={() => toggleApplied(d)}
+                    disabled={savingId === d.id}
+                    className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50 ${
+                      d.applied ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    <Check size={14} /> {d.applied ? "Qo'llanildi" : "To'lovda qo'llash"}
+                  </button>
+                ) : (
+                  <span className={`shrink-0 text-xs font-bold ${d.applied ? 'text-green-600' : 'text-gray-400'}`}>
+                    {d.applied ? "✅ Qo'llanildi" : 'Kutilmoqda'}
+                  </span>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       )}

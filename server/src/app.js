@@ -44,6 +44,8 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // ==================== API ROUTES ====================
+// Oylik TOP chegirma API (parents-activity moduli)
+app.use('/api/rewards', parentsActivity.rewardsRouter);
 app.use('/api', routes);
 
 // API info endpoint
@@ -96,6 +98,7 @@ const startServer = async () => {
      📁 Uploads:   ${process.env.UPLOAD_DIR || './uploads'}
      ⏰ Cron:      Active ✅
      👪 Parents:   Module active ✅
+     🎁 TOP-5:     Monthly discount ✅
      ───────────────────────────────────────────────
      🚀 API:       http://localhost:${PORT}/api
   ═══════════════════════════════════════════════ 🤖

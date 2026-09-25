@@ -10,6 +10,7 @@ const achievement = require('../services/achievement');
 const notification = require('../services/notification');
 const subscription = require('../services/subscription');
 const link = require('../services/link');
+const topReward = require('../services/topReward');
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -233,9 +234,19 @@ function start() {
     }
   });
 
+  cron.schedule(config.monthlyTopCron, async () => {
+    logger.info('[parents] CRON oylik TOP chegirma');
+    try {
+      await topReward.runMonthlyTop();
+    } catch (err) {
+      logger.error('[parents] CRON oylik TOP xato', { error: err.message });
+    }
+  });
+
   logger.info('[parents] Cron o\'rnatildi', {
     weekly: config.weeklyCron,
     subs: config.dailySubscriptionCron,
+    monthlyTop: config.monthlyTopCron,
   });
 }
 
@@ -244,4 +255,5 @@ module.exports = {
   runWeeklyRewards,
   runInactivityReminders,
   runSubscriptionCheck,
+  runMonthlyTop: topReward.runMonthlyTop,
 };

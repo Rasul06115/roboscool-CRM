@@ -40,10 +40,17 @@ const config = {
   // Bir odamga eslatma qayta yubormaslik oralig'i (kun)
   reminderCooldownDays: intOr('PARENTS_REMINDER_COOLDOWN_DAYS', 7),
 
-  // Cron (Railway serveri UTC bo'lgani uchun UTC vaqtida yozilgan).
-  // 09:00 Toshkent = 04:00 UTC (dushanba) ; 20:00 Toshkent = 15:00 UTC (har kuni)
+  // TOP-N oylik chegirma
+  topCount: intOr('TOP_DISCOUNT_COUNT', 5),
+  topDiscountPercent: intOr('TOP_DISCOUNT_PERCENT', 40),
+
+  // Cron (Railway serveri UTC). Toshkent = UTC+5.
+  // Dushanba 09:00 Toshkent = 04:00 UTC
   weeklyCron: strOr('PARENTS_WEEKLY_CRON', '0 4 * * 1'),
+  // Har kuni 20:00 Toshkent = 15:00 UTC
   dailySubscriptionCron: strOr('PARENTS_SUBS_CRON', '0 15 * * *'),
+  // Har oyning 1-sanasi 10:00 Toshkent = 05:00 UTC
+  monthlyTopCron: strOr('TOP_DISCOUNT_CRON', '0 5 1 * *'),
 };
 
 module.exports = config;
