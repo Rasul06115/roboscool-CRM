@@ -10,14 +10,29 @@ const RATING_LABELS = {
   EXCELLENT: "A'lo",
 };
 
+// `thinking` va `independence` — bazadagi eski ustunlar, yangi nomlar bilan
 const FIELD_LABELS = {
   teamwork: 'Jamoaviy ish',
-  thinking: 'Fikrlash',
+  thinking: 'Algoritmik fikrlash',
   behavior: 'Xulq',
   mastery: "O'zlashtirish",
   creativity: 'Kreativ fikrlash',
   decisionMaking: 'Tezkor qaror',
-  independence: 'Mustaqillik',
+  independence: 'Muammoni yechish',
+  attention: 'Diqqat va aniqlik',
+  initiative: 'Tashabbuskorlik',
+};
+
+const RATING_VALUES = ['POOR', 'AVERAGE', 'GOOD', 'EXCELLENT'];
+const EVAL_FIELDS = Object.keys(FIELD_LABELS);
+
+// Faqat ruxsat etilgan baholarni olish (noto'g'ri qiymat bazaga tushmasin)
+const pickRatings = (body) => {
+  const data = {};
+  for (const f of EVAL_FIELDS) {
+    if (RATING_VALUES.includes(body[f])) data[f] = body[f];
+  }
+  return data;
 };
 
 // Daraja aniqlash
@@ -37,7 +52,8 @@ const getLevel = (points) => {
 // O'quvchini baholash (yaratish/yangilash)
 exports.upsertEvaluation = async (req, res, next) => {
   try {
-    const { studentId, period, teamwork, thinking, behavior, mastery, creativity, decisionMaking, independence, note, sendSms } = req.body;
+    const { studentId, period, teamwork, behavior, mastery, note, sendSms } = req.body;
+    const ratings = pickRatings(req.body);
 
     if (!studentId || !period) {
       return res.status(400).json({ success: false, error: "studentId va period talab qilinadi" });
@@ -45,8 +61,8 @@ exports.upsertEvaluation = async (req, res, next) => {
 
     const evaluation = await prisma.studentEvaluation.upsert({
       where: { studentId_period: { studentId, period } },
-      update: { teamwork, thinking, behavior, mastery, creativity, decisionMaking, independence, note },
-      create: { studentId, period, teamwork, thinking, behavior, mastery, creativity, decisionMaking, independence, note },
+      update: { ...ratings, note },
+      create: { studentId, period, ...ratings, note },
       include: { student: { include: { group: { include: { course: true } } } } },
     });
 

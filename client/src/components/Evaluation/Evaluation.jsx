@@ -49,6 +49,8 @@ export default function Evaluation() {
           creativity: s.evaluation?.creativity || 'AVERAGE',
           decisionMaking: s.evaluation?.decisionMaking || 'AVERAGE',
           independence: s.evaluation?.independence || 'AVERAGE',
+          attention: s.evaluation?.attention || 'AVERAGE',
+          initiative: s.evaluation?.initiative || 'AVERAGE',
           note: s.evaluation?.note || '',
         },
         saved: !!s.evaluation,

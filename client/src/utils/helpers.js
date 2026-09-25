@@ -63,14 +63,18 @@ export const EVALUATION_RATINGS = [
   { value: 'EXCELLENT', label: "A'lo", emoji: '⭐', color: '#F59E0B' },
 ];
 
+// Eslatma: `thinking` va `independence` kalitlari bazadagi eski ustunlar —
+// ular endi "Algoritmik fikrlash" va "Muammoni yechish" nomi bilan ishlatiladi.
 export const EVALUATION_FIELDS = [
   { key: 'teamwork', label: 'Jamoaviy ish', icon: '🤝', description: "Guruhda ishlash qobiliyati" },
-  { key: 'thinking', label: 'Fikrlash', icon: '🧠', description: "Mantiqiy fikrlash" },
+  { key: 'thinking', label: 'Algoritmik fikrlash', icon: '🧩', description: "Vazifani bosqichlarga bo'lib yechadi" },
   { key: 'behavior', label: 'Xulq', icon: '😊', description: "Darsda o'zini tutishi" },
   { key: 'mastery', label: "O'zlashtirish", icon: '📚', description: "Materialni o'zlashtirish" },
   { key: 'creativity', label: 'Kreativ fikrlash', icon: '💡', description: "Ijodiy yondashuv" },
   { key: 'decisionMaking', label: 'Tezkor qaror', icon: '⚡', description: "Qaror qabul qilish" },
-  { key: 'independence', label: 'Mustaqillik', icon: '🎯', description: "Mustaqil ishlash" },
+  { key: 'independence', label: 'Muammoni yechish', icon: '🔧', description: "Xatoni o'zi topib tuzatadi" },
+  { key: 'attention', label: 'Diqqat va aniqlik', icon: '🎯', description: "Sxema va kodni e'tibor bilan bajaradi" },
+  { key: 'initiative', label: 'Tashabbuskorlik', icon: '🚀', description: "Savol beradi, yangi narsani sinab ko'radi" },
 ];
 
 export const getRatingInfo = (rating) => {

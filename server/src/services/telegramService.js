@@ -294,12 +294,14 @@ const initBot = () => {
               if (ev) {
                 evalText = `\n📊 Baholash (${ev.period}):\n` +
                   `  ${ratingEmoji[ev.teamwork] || '🟡'} Jamoaviy ish: ${ratingLabel[ev.teamwork] || "O'rta"}\n` +
-                  `  ${ratingEmoji[ev.thinking] || '🟡'} Fikrlash: ${ratingLabel[ev.thinking] || "O'rta"}\n` +
+                  `  ${ratingEmoji[ev.thinking] || '🟡'} Algoritmik fikrlash: ${ratingLabel[ev.thinking] || "O'rta"}\n` +
                   `  ${ratingEmoji[ev.behavior] || '🟡'} Xulq: ${ratingLabel[ev.behavior] || "O'rta"}\n` +
                   `  ${ratingEmoji[ev.mastery] || '🟡'} O'zlashtirish: ${ratingLabel[ev.mastery] || "O'rta"}\n` +
                   `  ${ratingEmoji[ev.creativity] || '🟡'} Kreativ fikrlash: ${ratingLabel[ev.creativity] || "O'rta"}\n` +
                   `  ${ratingEmoji[ev.decisionMaking] || '🟡'} Tezkor qaror: ${ratingLabel[ev.decisionMaking] || "O'rta"}\n` +
-                  `  ${ratingEmoji[ev.independence] || '🟡'} Mustaqillik: ${ratingLabel[ev.independence] || "O'rta"}\n`;
+                  `  ${ratingEmoji[ev.independence] || '🟡'} Muammoni yechish: ${ratingLabel[ev.independence] || "O'rta"}\n` +
+                  `  ${ratingEmoji[ev.attention] || '🟡'} Diqqat va aniqlik: ${ratingLabel[ev.attention] || "O'rta"}\n` +
+                  `  ${ratingEmoji[ev.initiative] || '🟡'} Tashabbuskorlik: ${ratingLabel[ev.initiative] || "O'rta"}\n`;
               }
             } catch (e) { /* ignore */ }
 

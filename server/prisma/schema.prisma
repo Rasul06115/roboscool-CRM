@@ -240,12 +240,14 @@ model StudentEvaluation {
   studentId      String           @map("student_id")
   period         String                                    // "2026-05" format
   teamwork       EvaluationRating @default(AVERAGE)        // Jamoaviy ish
-  thinking       EvaluationRating @default(AVERAGE)        // Fikrlash
+  thinking       EvaluationRating @default(AVERAGE)        // Algoritmik fikrlash (avval: Fikrlash)
   behavior       EvaluationRating @default(GOOD)           // Xulq
   mastery        EvaluationRating @default(AVERAGE)        // O'zlashtirish
   creativity     EvaluationRating @default(AVERAGE)        // Kreativ fikrlash
   decisionMaking EvaluationRating @default(AVERAGE) @map("decision_making")  // Tezkor qaror
-  independence   EvaluationRating @default(AVERAGE)        // Mustaqillik
+  independence   EvaluationRating @default(AVERAGE)        // Muammoni yechish (avval: Mustaqillik)
+  attention      EvaluationRating @default(AVERAGE)        // Diqqat va aniqlik
+  initiative     EvaluationRating @default(AVERAGE)        // Tashabbuskorlik
   note           String?
   smsSent        Boolean          @default(false) @map("sms_sent")
   createdAt      DateTime         @default(now()) @map("created_at")
