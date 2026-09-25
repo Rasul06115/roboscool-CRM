@@ -1,9 +1,36 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, Filter, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Calendar, Send, Eye, EyeOff } from 'lucide-react';
+import { Plus, Trash2, Filter, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Calendar, Send, Eye, EyeOff, Gift } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { paymentsAPI, groupsAPI, studentsAPI, coursesAPI, smsAPI } from '../../utils/api';
+import api, { paymentsAPI, groupsAPI, studentsAPI, coursesAPI, smsAPI } from '../../utils/api';
 import { formatMoney } from '../../utils/helpers';
 import MonthlyReport from './MonthlyReport';
+
+// Moliya summalarini yashirish (Boshqaruv sahifasi bilan umumiy holat)
+const HIDE_KEY = 'dashboard_hide_stats';
+const HIDDEN = '••••••';
+
+function readHidden() {
+  try {
+    const v = localStorage.getItem(HIDE_KEY);
+    return v === null ? true : v === '1';
+  } catch (_) {
+    return true;
+  }
+}
+
+// TOP-5 chegirmalar (oy uchun) — jadval bo'lmasa ham xato bermaydi
+async function fetchDiscounts(validMonth) {
+  try {
+    const r = await api.get('/rewards/discounts', { params: { validMonth } });
+    return Array.isArray(r.data) ? r.data : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+// Chegirmali narx: 1 000 so'mgacha yaxlitlanadi
+const applyPercent = (price, percent) =>
+  Math.round((Number(price) * (100 - Number(percent))) / 100 / 1000) * 1000;
 
 // Kursga qarab dinamik narx: 5-sanagacha = discountPrice, keyin = price
 const getDynamicPrice = (course) => {
@@ -26,6 +53,17 @@ export default function Finance() {
   const [preselectedStudent, setPreselectedStudent] = useState(null);
   const [sendingSms, setSendingSms] = useState({});
   const [showPaymentsList, setShowPaymentsList] = useState(false); // Yashirilgan bo'ladi
+  const [hidden, setHidden] = useState(readHidden);
+  const [discounts, setDiscounts] = useState([]);
+
+  const toggleHidden = () => {
+    setHidden(prev => {
+      const next = !prev;
+      try { localStorage.setItem(HIDE_KEY, next ? '1' : '0'); } catch (_) { /* ignore */ }
+      return next;
+    });
+  };
+  const money = (v) => (hidden ? HIDDEN : formatMoney(v));
 
   useEffect(() => { loadData(); }, []);
 
@@ -131,6 +169,19 @@ export default function Finance() {
   const today = new Date().getDate();
   const selectedMonth = filterMonth || new Date().toISOString().slice(0, 7);
 
+  // Tanlangan oy uchun TOP chegirmalar
+  useEffect(() => {
+    let alive = true;
+    fetchDiscounts(selectedMonth).then(list => { if (alive) setDiscounts(list); });
+    return () => { alive = false; };
+  }, [selectedMonth]);
+
+  const discountByStudent = useMemo(() => {
+    const m = new Map();
+    discounts.forEach(d => m.set(d.studentId, d));
+    return m;
+  }, [discounts]);
+
   const groupBreakdown = useMemo(() => {
     return groups.map(g => {
       const groupStudents = students.filter(s => s.groupId === g.id && s.status === 'ACTIVE');
@@ -155,19 +206,29 @@ export default function Finance() {
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      <MonthlyReport />
+      <MonthlyReport hidden={hidden} />
 
-      {/* Statistika */}
+      {/* Statistika (ko'z tugmasi bilan yashiriladi) */}
+      <div className="flex justify-end -mb-3">
+        <button
+          onClick={toggleHidden}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-semibold border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-all"
+          title={hidden ? "Ko'rsatish" : 'Yashirish'}
+        >
+          {hidden ? <EyeOff size={16} /> : <Eye size={16} />}
+          {hidden ? "Summalarni ko'rsatish" : 'Summalarni yashirish'}
+        </button>
+      </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl border border-gray-200 p-5">
           <div className="text-2xl mb-2">💰</div>
           <p className="text-xs text-gray-500">Umumiy daromad</p>
-          <p className="text-2xl font-extrabold text-green-600">{formatMoney(stats?.totalRevenue || 0)}</p>
+          <p className={`text-2xl font-extrabold ${hidden ? 'text-gray-300 tracking-widest' : 'text-green-600'}`}>{money(stats?.totalRevenue || 0)}</p>
         </div>
         <div className="bg-white rounded-2xl border border-gray-200 p-5">
           <div className="text-2xl mb-2">📅</div>
           <p className="text-xs text-gray-500">Oylik daromad</p>
-          <p className="text-2xl font-extrabold text-blue-600">{formatMoney(stats?.monthlyRevenue || 0)}</p>
+          <p className={`text-2xl font-extrabold ${hidden ? 'text-gray-300 tracking-widest' : 'text-blue-600'}`}>{money(stats?.monthlyRevenue || 0)}</p>
         </div>
         <div className="bg-white rounded-2xl border border-gray-200 p-5">
           <div className="text-2xl mb-2">📊</div>
@@ -180,9 +241,45 @@ export default function Finance() {
         <div className="bg-white rounded-2xl border border-gray-200 p-5">
           <div className="text-2xl mb-2">⚠️</div>
           <p className="text-xs text-gray-500">Umumiy qarz</p>
-          <p className="text-2xl font-extrabold text-red-600">{stats?.totalDebt || 0}</p>
+          <p className={`text-2xl font-extrabold ${hidden ? 'text-gray-300 tracking-widest' : 'text-red-600'}`}>{money(stats?.totalDebt || 0)}</p>
         </div>
       </div>
+
+      {/* TOP-5 chegirmalar (tanlangan oy uchun) */}
+      {discounts.length > 0 && (
+        <div className="p-4 rounded-2xl border bg-rose-50 border-rose-200">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <p className="text-sm font-bold text-rose-700 flex items-center gap-2">
+              <Gift size={18} /> {discounts[0].discountPercent}% chegirma — {discounts[0].validMonthLabel}
+              <span className="font-normal text-rose-500">({discounts[0].periodLabel} TOP-{discounts.length})</span>
+            </p>
+            <span className="text-xs font-bold text-rose-600 bg-white rounded-full px-3 py-1">
+              {discounts.filter(d => d.applied).length}/{discounts.length} qo'llanildi
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+            {discounts.map(d => {
+              const st = students.find(s => s.id === d.studentId);
+              return (
+                <div key={d.id} className={`rounded-xl p-3 border ${d.applied ? 'bg-green-50 border-green-200' : 'bg-white border-rose-100'}`}>
+                  <p className="text-sm font-bold text-gray-800 truncate">{d.rank}. {d.studentName}</p>
+                  <p className="text-[10px] text-gray-400 truncate">{d.groupName || '—'} • {d.points} ball</p>
+                  {d.applied ? (
+                    <p className="text-xs font-bold text-green-600 mt-1.5">✅ Qo'llanildi</p>
+                  ) : st ? (
+                    <button onClick={() => openPaymentForStudent(st)}
+                      className="mt-1.5 w-full text-xs font-bold px-2 py-1.5 rounded-lg bg-rose-600 text-white hover:bg-rose-700">
+                      💰 Chegirma bilan to'lov
+                    </button>
+                  ) : (
+                    <p className="text-[10px] text-gray-400 mt-1.5">O'quvchi faol emas</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Kurs narxlari */}
       <div className={`p-4 rounded-2xl border ${today <= 5 ? 'bg-green-50 border-green-200' : 'bg-orange-50 border-orange-200'}`}>
@@ -228,7 +325,7 @@ export default function Finance() {
           </select>
           {(filterGroup || filterMonth) && (
             <div className="flex items-center text-sm font-semibold text-teal-600 bg-teal-50 px-3 rounded-xl">
-              Jami: {formatMoney(filteredTotal)} so'm ({filtered.length} ta)
+              Jami: {money(filteredTotal)}{!hidden && " so'm"} ({filtered.length} ta)
             </div>
           )}
         </div>
@@ -394,11 +491,20 @@ export default function Finance() {
                           {debtors.map(s => (
                             <div key={s.id} className="flex justify-between items-center p-2 bg-red-50/50 rounded-lg">
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-700 truncate">{s.fullName}</p>
+                                <p className="text-sm font-medium text-gray-700 truncate">
+                                  {s.fullName}
+                                  {discountByStudent.get(s.id) && !discountByStudent.get(s.id).applied && (
+                                    <span className="ml-1.5 text-[10px] font-bold text-rose-600 bg-rose-50 rounded px-1.5">🎁 {discountByStudent.get(s.id).discountPercent}%</span>
+                                  )}
+                                </p>
                                 {s.parentPhone && <p className="text-[10px] text-gray-400 font-mono">{s.parentPhone}</p>}
                               </div>
                               <div className="flex items-center gap-1.5 ml-2">
-                                <span className="text-xs font-bold text-red-600 mr-1">-{formatMoney(coursePrice)}</span>
+                                <span className="text-xs font-bold text-red-600 mr-1">
+                                  -{formatMoney(discountByStudent.get(s.id) && !discountByStudent.get(s.id).applied
+                                    ? applyPercent(coursePrice, discountByStudent.get(s.id).discountPercent)
+                                    : coursePrice)}
+                                </span>
                                 <button onClick={() => openPaymentForStudent(s)}
                                   className="p-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs font-bold"
                                   title="To'lov qabul qilish">💰</button>
@@ -427,10 +533,19 @@ export default function Finance() {
         students={students}
         courses={courses}
         preselectedStudent={preselectedStudent}
-        onSave={async (form) => {
+        onSave={async (form, usedDiscount) => {
           try {
             await paymentsAPI.create(form);
             toast.success("To'lov qabul qilindi!");
+            if (usedDiscount && !usedDiscount.applied) {
+              try {
+                await api.patch(`/rewards/discounts/${usedDiscount.id}`, { applied: true });
+                toast.success(`🎁 ${usedDiscount.discountPercent}% chegirma qo'llanildi deb belgilandi`);
+              } catch (_) {
+                toast.error("Chegirmani belgilab bo'lmadi — Boshqaruv sahifasida qo'lda belgilang");
+              }
+            }
+            fetchDiscounts(selectedMonth).then(setDiscounts);
             setShowModal(false);
             setPreselectedStudent(null);
             loadData();
@@ -457,6 +572,15 @@ function PaymentModal({ groups, students, courses, preselectedStudent, onSave, o
     monthFor: new Date().toISOString().slice(0, 7),
     note: '',
   });
+  const [modalDiscounts, setModalDiscounts] = useState([]);
+  const [useDiscount, setUseDiscount] = useState(false);
+
+  // To'lov qaysi oy uchun bo'lsa — o'sha oyning TOP chegirmalari
+  useEffect(() => {
+    let alive = true;
+    fetchDiscounts(form.monthFor).then(list => { if (alive) setModalDiscounts(list); });
+    return () => { alive = false; };
+  }, [form.monthFor]);
 
   const ic = "w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:border-teal-500 focus:outline-none";
   const filteredStudents = filterGroup ? students.filter(s => s.groupId === filterGroup) : students;
@@ -466,13 +590,33 @@ function PaymentModal({ groups, students, courses, preselectedStudent, onSave, o
   const selectedGroup = selectedStudent ? groups.find(g => g.id === selectedStudent.groupId) : null;
   const selectedCourse = selectedGroup?.course || null;
   const coursePrice = selectedCourse ? getDynamicPrice(selectedCourse) : 0;
+  const studentDiscount = form.studentId ? modalDiscounts.find(d => d.studentId === form.studentId) : null;
+  const discountedPrice = studentDiscount && coursePrice ? applyPercent(coursePrice, studentDiscount.discountPercent) : 0;
+  const discountNote = studentDiscount
+    ? `TOP-5 ${studentDiscount.discountPercent}% chegirma (${studentDiscount.periodLabel})`
+    : '';
+
+  const applyTopDiscount = () => {
+    if (!studentDiscount || !coursePrice) return;
+    setUseDiscount(true);
+    setForm(f => ({ ...f, amount: discountedPrice, note: f.note && f.note !== discountNote ? f.note : discountNote }));
+  };
+
+  // Oldindan tanlangan o'quvchida chegirma bo'lsa — avtomatik qo'llash
+  useEffect(() => {
+    if (preselectedStudent && studentDiscount && !studentDiscount.applied && !useDiscount && coursePrice) {
+      applyTopDiscount();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [studentDiscount?.id, coursePrice]);
 
   const handleStudentChange = (studentId) => {
     const student = students.find(s => s.id === studentId);
     const group = student ? groups.find(g => g.id === student.groupId) : null;
     const course = group?.course || null;
     const price = course ? getDynamicPrice(course) : '';
-    setForm({ ...form, studentId, amount: price });
+    setUseDiscount(false);
+    setForm({ ...form, studentId, amount: price, note: form.note === discountNote ? '' : form.note });
   };
 
   return (
@@ -536,6 +680,32 @@ function PaymentModal({ groups, students, courses, preselectedStudent, onSave, o
             </div>
           )}
 
+          {studentDiscount && (
+            <div className={`p-3 rounded-xl border text-sm ${studentDiscount.applied ? 'bg-gray-50 border-gray-200' : 'bg-rose-50 border-rose-200'}`}>
+              <p className="font-bold text-rose-700 flex items-center gap-1.5">
+                <Gift size={16} /> TOP-5 g'olibi — {studentDiscount.discountPercent}% chegirma
+              </p>
+              <p className="text-xs text-gray-600 mt-1">
+                {studentDiscount.periodLabel}da {studentDiscount.rank}-o'rin ({studentDiscount.points} ball) •
+                {' '}{studentDiscount.validMonthLabel} to'lovi uchun
+              </p>
+              {studentDiscount.applied ? (
+                <p className="text-xs font-bold text-gray-500 mt-2">✅ Bu chegirma allaqachon qo'llanilgan</p>
+              ) : coursePrice ? (
+                <div className="flex items-center justify-between gap-2 mt-2">
+                  <p className="text-xs">
+                    <span className="line-through text-gray-400 mr-1">{formatMoney(coursePrice)}</span>
+                    <span className="font-extrabold text-rose-700">{formatMoney(discountedPrice)} so'm</span>
+                  </p>
+                  <button onClick={applyTopDiscount}
+                    className={`text-xs font-bold px-3 py-1.5 rounded-lg ${useDiscount ? 'bg-green-600 text-white' : 'bg-rose-600 text-white hover:bg-rose-700'}`}>
+                    {useDiscount ? "✓ Qo'llanmoqda" : `${studentDiscount.discountPercent}% qo'llash`}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">Summa *</label>
@@ -572,7 +742,7 @@ function PaymentModal({ groups, students, courses, preselectedStudent, onSave, o
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">Qaysi oy uchun</label>
               <input className={ic} type="month" value={form.monthFor}
-                onChange={e => setForm({ ...form, monthFor: e.target.value })} />
+                onChange={e => { setUseDiscount(false); setForm({ ...form, monthFor: e.target.value }); }} />
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">Izoh</label>
@@ -587,7 +757,8 @@ function PaymentModal({ groups, students, courses, preselectedStudent, onSave, o
             <button onClick={() => {
               if (!form.studentId) { toast.error("O'quvchi tanlang!"); return; }
               if (!form.amount || Number(form.amount) <= 0) { toast.error("Summani kiriting!"); return; }
-              onSave({ ...form, amount: Number(form.amount) });
+              const markDiscount = useDiscount && studentDiscount && !studentDiscount.applied ? studentDiscount : null;
+              onSave({ ...form, amount: Number(form.amount) }, markDiscount);
             }}
               className="px-5 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700">
               Qabul qilish

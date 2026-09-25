@@ -8,7 +8,10 @@ import { formatMoney } from '../../utils/helpers';
 
 const LESSONS_PER_MONTH = 13; // 1 oyda 13 ta dars
 
-export default function MonthlyReport() {
+const HIDDEN = '••••••';
+
+export default function MonthlyReport({ hidden = false }) {
+  const money = (v) => (hidden ? HIDDEN : formatMoney(v));
   const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
   const [selectedGroup, setSelectedGroup] = useState('');
   const [groups, setGroups] = useState([]);
@@ -200,11 +203,11 @@ export default function MonthlyReport() {
           </div>
           <div className="bg-green-50 rounded-xl p-3 border border-green-100">
             <p className="text-xs text-gray-500">Davomat daromadi</p>
-            <p className="text-xl font-extrabold text-green-700">{formatMoney(totals.earned)}</p>
+            <p className="text-xl font-extrabold text-green-700">{money(totals.earned)}</p>
           </div>
           <div className="bg-teal-50 rounded-xl p-3 border border-teal-100">
             <p className="text-xs text-gray-500">To'langan</p>
-            <p className="text-xl font-extrabold text-teal-700">{formatMoney(totals.paid)}</p>
+            <p className="text-xl font-extrabold text-teal-700">{money(totals.paid)}</p>
           </div>
         </div>
       )}
@@ -240,8 +243,8 @@ export default function MonthlyReport() {
                 <td colSpan="3" className="px-3 py-3">JAMI</td>
                 <td className="px-3 py-3 text-center text-purple-700">{totals.attended} ta</td>
                 <td></td>
-                <td className="px-3 py-3 text-right text-green-700">{formatMoney(totals.earned)} so'm</td>
-                <td className="px-3 py-3 text-right text-teal-700">{formatMoney(totals.paid)} so'm</td>
+                <td className="px-3 py-3 text-right text-green-700">{money(totals.earned)}{!hidden && " so'm"}</td>
+                <td className="px-3 py-3 text-right text-teal-700">{money(totals.paid)}{!hidden && " so'm"}</td>
               </tr>
             </tbody>
           </table>
