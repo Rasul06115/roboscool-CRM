@@ -46,6 +46,8 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // ==================== API ROUTES ====================
 // Oylik TOP chegirma API (parents-activity moduli)
 app.use('/api/rewards', parentsActivity.rewardsRouter);
+// Telegram Mini App — shaxsiy kabinet API (CRM login emas, Telegram imzosi bilan)
+app.use('/api/cabinet', parentsActivity.cabinetRouter);
 app.use('/api', routes);
 
 // API info endpoint
@@ -99,6 +101,7 @@ const startServer = async () => {
      ⏰ Cron:      Active ✅
      👪 Parents:   Module active ✅
      🎁 TOP-5:     Monthly discount ✅
+     📱 Kabinet:   Telegram Mini App ✅
      ───────────────────────────────────────────────
      🚀 API:       http://localhost:${PORT}/api
   ═══════════════════════════════════════════════ 🤖

@@ -40,6 +40,15 @@ const config = {
   // Bir odamga eslatma qayta yubormaslik oralig'i (kun)
   reminderCooldownDays: intOr('PARENTS_REMINDER_COOLDOWN_DAYS', 7),
 
+  // Telegram Mini App (shaxsiy kabinet) manzili — https bo'lishi shart.
+  // MINI_APP_URL berilmasa, CLIENT_URL + "/cabinet" ishlatiladi.
+  miniAppUrl: (() => {
+    const explicit = strOr('MINI_APP_URL', '');
+    if (explicit) return explicit;
+    const client = strOr('CLIENT_URL', '');
+    return client ? `${client.replace(/\/+$/, '')}/cabinet` : '';
+  })(),
+
   // TOP-N oylik chegirma
   topCount: intOr('TOP_DISCOUNT_COUNT', 5),
   topDiscountPercent: intOr('TOP_DISCOUNT_PERCENT', 40),

@@ -57,6 +57,8 @@ function register() {
         `/parents_top5 — joriy oy reytingi (oldindan ko'rish)\n` +
         `/parents_run_top5 — o'tgan oy TOP'ini e'lon qilish\n` +
         `<code>/parents_run_top5 2026-09</code> — aniq oy uchun\n\n` +
+        `<b>Kabinet (Mini App):</b>\n` +
+        `/kabinet — kabinetni ochish (admin istalgan o'quvchini ko'radi)\n\n` +
         `<b>Guruh:</b>\n` +
         `/parents_groups — guruhlar ro'yxati\n` +
         `/parents_chatid — chat ID (istalgan chatda)`

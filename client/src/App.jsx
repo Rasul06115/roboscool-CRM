@@ -13,6 +13,7 @@ import Reports from './components/Reports/Reports';
 import Attendance from './components/Attendance/Attendance';
 import SmsCenter from './components/SmsCenter/SmsCenter';
 import Evaluation from './components/Evaluation/Evaluation';
+import Cabinet from './components/Cabinet/Cabinet';
 
 const navItems = [
   { path: '/', label: 'Boshqaruv', icon: LayoutDashboard },
@@ -37,6 +38,9 @@ export default function App() {
   const { user, loading, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+
+  // Telegram Mini App — ota-onalar kabineti (CRM login talab qilinmaydi)
+  if (location.pathname.startsWith('/cabinet')) return <Cabinet />;
 
   if (loading) return <div className="flex items-center justify-center h-screen bg-gray-100"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-teal-600" /></div>;
 

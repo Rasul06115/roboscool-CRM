@@ -6,6 +6,8 @@ const messages = require('./handlers/messages');
 const adminCommands = require('./handlers/adminCommands');
 const scheduler = require('./jobs/scheduler');
 const rewardsRouter = require('./routes');
+const cabinetRouter = require('./cabinetRoutes');
+const cabinetCommands = require('./handlers/cabinetCommands');
 
 /**
  * Ota-onalar aktivlik moduli + oylik TOP chegirma.
@@ -37,6 +39,7 @@ function init({ bot, prisma, logger }) {
 
   messages.register();
   adminCommands.register();
+  cabinetCommands.register();
   scheduler.start();
 
   state.logger.info('[parents] ✅ Ota-onalar aktivlik moduli ishga tushdi');
@@ -49,5 +52,5 @@ function init({ bot, prisma, logger }) {
   };
 }
 
-// CRM API router (bot bo'lmasa ham ishlaydi — faqat ro'yxat/belgilash)
-module.exports = { init, rewardsRouter };
+// API routerlar (bot bo'lmasa ham ishlaydi)
+module.exports = { init, rewardsRouter, cabinetRouter };
