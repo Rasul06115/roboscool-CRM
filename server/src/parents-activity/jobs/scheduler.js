@@ -11,6 +11,7 @@ const notification = require('../services/notification');
 const subscription = require('../services/subscription');
 const link = require('../services/link');
 const topReward = require('../services/topReward');
+const announce = require('../services/announce');
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -243,10 +244,27 @@ function start() {
     }
   });
 
+  let announcing = false;
+  cron.schedule(config.announceCron, async () => {
+    if (announcing) return; // oldingi tekshiruv tugamagan bo'lsa — kutamiz
+    announcing = true;
+    try {
+      await announce.runAnnouncements();
+    } catch (err) {
+      // Jadval hali yaratilmagan bo'lsa log to'lib ketmasin
+      if (!String(err.message).includes('announced_achievements')) {
+        logger.error('[parents] CRON e\'lon xato', { error: err.message });
+      }
+    } finally {
+      announcing = false;
+    }
+  });
+
   logger.info('[parents] Cron o\'rnatildi', {
     weekly: config.weeklyCron,
     subs: config.dailySubscriptionCron,
     monthlyTop: config.monthlyTopCron,
+    announce: config.announceCron,
   });
 }
 

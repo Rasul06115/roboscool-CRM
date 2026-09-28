@@ -8,6 +8,7 @@
  */
 
 const prisma = require('../../config/prisma');
+const { publicAvatar } = require('./avatar');
 const {
   toTashkent,
   currentPeriod,
@@ -88,7 +89,7 @@ function summary(s) {
     id: s.id,
     fullName: s.fullName,
     initials: initials(s.fullName),
-    avatar: s.avatar || null,
+    avatar: publicAvatar(s.id, s.avatar),
     groupName: s.group?.name || null,
     courseName: s.group?.course?.name || null,
     courseIcon: s.group?.course?.icon || '📚',

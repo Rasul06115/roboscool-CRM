@@ -3,7 +3,6 @@
 const state = require('../state');
 const config = require('../config');
 const activity = require('../services/activity');
-const link = require('../services/link');
 
 function isAllowedGroup(chatId) {
   if (config.allowedGroupChatIds.length === 0) return true;
@@ -15,10 +14,9 @@ function isAdmin(chatId) {
 }
 
 /**
- * Barcha xabarlar uchun bitta listener.
- * - GURUH: ota-ona aktivligini yozadi.
- * - SHAXSIY (admin emas): o'quvchi ismini qidirsa, avtomatik bog'laydi (javob YUBORMAYDI —
- *   CRM botining o'z javobiga umuman tegmaydi).
+ * Guruh xabarlari listeneri — ota-ona aktivligini yozadi.
+ * Eslatma: ism bo'yicha avtomatik bog'lash O'CHIRILGAN (noto'g'ri bog'lanishlar bo'lgani uchun).
+ * Endi ota-ona faqat telefon raqami orqali bog'lanadi (handlers/contactLink.js).
  */
 async function onAnyMessage(msg) {
   try {
@@ -37,17 +35,6 @@ async function onAnyMessage(msg) {
         chatId: msg.chat.id,
         sentAt,
       });
-      return;
-    }
-
-    // ---- SHAXSIY chat: auto-link ----
-    if (chatType === 'private') {
-      const text = msg.text?.trim();
-      if (!text || text.startsWith('/')) return; // buyruqlar avtomatik bog'lanmaydi
-      if (isAdmin(msg.chat.id)) return; // admin qidiruvi bog'lanmaydi
-
-      // msg.from.id === msg.chat.id (private) — ota-onaning telegram id si
-      await link.autoLinkFromLookup(msg.from.id, text);
       return;
     }
   } catch (err) {

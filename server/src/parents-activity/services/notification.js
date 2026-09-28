@@ -55,8 +55,21 @@ async function wasNotifiedRecently(telegramId, type, sinceDate) {
   return n > 0;
 }
 
+/**
+ * Telegram ismini tozalash: maxsus shriftlar (𝐀𝐳𝐢𝐳 → Aziz) oddiy harfga aylanadi,
+ * harf bo'lmasa (faqat belgi/emoji) — umumiy murojaat ishlatiladi.
+ */
+function cleanName(name, fallback = 'Hurmatli ota-ona') {
+  const s = String(name || '')
+    .normalize('NFKC')
+    .replace(/[^\p{L}\p{M}\p{N}\s'’.\-]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return /\p{L}/u.test(s) ? s.slice(0, 40) : fallback;
+}
+
 function mention(telegramId, name) {
-  return `<a href="tg://user?id=${String(telegramId)}">${escapeHtml(name || 'ota-ona')}</a>`;
+  return `<a href="tg://user?id=${String(telegramId)}">${escapeHtml(cleanName(name))}</a>`;
 }
 
 function inactivityText({ firstName, targetTelegramId }) {
@@ -83,7 +96,7 @@ function rewardText({ firstName, points, studentNames = [], targetTelegramId }) 
 function subscriptionText({ firstName, missing }) {
   const list = missing.map((c) => `• https://t.me/${c.replace('@', '')}`).join('\n');
   return (
-    `📢 ${escapeHtml(firstName || 'Hurmatli ota-ona')}, ` +
+    `📢 ${escapeHtml(cleanName(firstName))}, ` +
     `iltimos, Roboschool rasmiy kanallariga obuna bo'ling:\n\n` +
     `${list}\n\n` +
     `Kanallarda darslar jadvali, yangi tanlovlar va farzandingiz uchun ` +
@@ -98,4 +111,5 @@ module.exports = {
   rewardText,
   subscriptionText,
   escapeHtml,
+  cleanName,
 };

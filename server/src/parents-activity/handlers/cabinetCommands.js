@@ -8,6 +8,8 @@
 
 const state = require('../state');
 const config = require('../config');
+const phoneLink = require('../services/phoneLink');
+const { askContact } = require('./contactLink');
 
 function isHttps(url) {
   return /^https:\/\/[^\s]+$/i.test(url || '');
@@ -47,6 +49,12 @@ function register() {
       return;
     }
     try {
+      // Hali bog'lanmagan ota-ona — avval telefon raqamini so'raymiz
+      const isAdminUser = String(msg.from?.id) === String(config.adminChatId);
+      if (!isAdminUser && (await phoneLink.countLinks(msg.from.id)) === 0) {
+        await askContact(msg.chat.id, '👋 Kabinetni ochishdan oldin farzandingizni ulaymiz.');
+        return;
+      }
       await bot.sendMessage(
         msg.chat.id,
         '📱 <b>Farzandingizning shaxsiy kabineti</b>\n\n' +

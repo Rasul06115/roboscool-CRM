@@ -57,6 +57,15 @@ function register() {
         `/parents_top5 — joriy oy reytingi (oldindan ko'rish)\n` +
         `/parents_run_top5 — o'tgan oy TOP'ini e'lon qilish\n` +
         `<code>/parents_run_top5 2026-09</code> — aniq oy uchun\n\n` +
+        `<b>📷 Rasmlar:</b>\n` +
+        `Botga rasm yuboring, izohiga o'quvchi ismini yozing\n` +
+        `/rasmsiz — rasmi yo'q o'quvchilar\n\n` +
+        `<b>📣 Guruh e'loni (${config.announceMinPoints}+ ball):</b>\n` +
+        `<code>/guruh_ulash Guruh nomi</code> — Telegram guruh ichida yozing\n` +
+        `/guruh_uzish — guruh ichida, ulanishni bekor qilish\n` +
+        `/guruhlar — ulangan guruhlar ro'yxati\n\n` +
+        `<b>📞 Ota-ona bog'lash:</b>\n` +
+        `Ota-ona /ulash yoki kabinet orqali raqamini yuboradi\n\n` +
         `<b>Kabinet (Mini App):</b>\n` +
         `/kabinet — kabinetni ochish (admin istalgan o'quvchini ko'radi)\n\n` +
         `<b>Guruh:</b>\n` +

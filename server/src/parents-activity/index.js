@@ -8,6 +8,9 @@ const scheduler = require('./jobs/scheduler');
 const rewardsRouter = require('./routes');
 const cabinetRouter = require('./cabinetRoutes');
 const cabinetCommands = require('./handlers/cabinetCommands');
+const contactLink = require('./handlers/contactLink');
+const photos = require('./handlers/photos');
+const groupLink = require('./handlers/groupLink');
 
 /**
  * Ota-onalar aktivlik moduli + oylik TOP chegirma.
@@ -40,6 +43,9 @@ function init({ bot, prisma, logger }) {
   messages.register();
   adminCommands.register();
   cabinetCommands.register();
+  contactLink.register();
+  photos.register();
+  groupLink.register();
   scheduler.start();
 
   state.logger.info('[parents] ✅ Ota-onalar aktivlik moduli ishga tushdi');

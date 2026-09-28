@@ -189,12 +189,10 @@ export default function Cabinet() {
         )}
 
         {!selectedId && !me?.isAdmin && (
-          <Message
-            icon="👨‍👩‍👦"
-            title="Farzandingiz hali bog'lanmagan"
-            text="Botga farzandingizning to'liq ismini yozing (masalan: Aziz Karimov). Shundan so'ng kabinet avtomatik ochiladi."
-            action={{ label: 'Botga qaytish', onClick: () => tg?.close() }}
-          />
+          <LinkByPhone tg={tg} initData={initData} onLinked={(data) => {
+            setMe(data);
+            if (data.children.length > 0) setSelectedId(data.children[0].id);
+          }} />
         )}
 
         {!selectedId && me?.isAdmin && (
@@ -545,6 +543,68 @@ function AdminSearch({ initData, onPick }) {
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+// Telefon raqam orqali bog'lash (Telegram tasdiqlagan raqam CRM bilan solishtiriladi)
+function LinkByPhone({ tg, initData, onLinked }) {
+  const [state, setState] = useState('idle'); // idle | waiting | notfound | unsupported
+
+  const canRequest = typeof tg?.requestContact === 'function';
+
+  const pollMe = async () => {
+    // Bot raqamni qabul qilib bog'lashi uchun bir necha soniya kutamiz
+    for (let i = 0; i < 6; i += 1) {
+      await new Promise((r) => setTimeout(r, 1500));
+      try {
+        const data = await apiGet('/me', initData);
+        if (data.children.length > 0) { onLinked(data); return; }
+      } catch (_) { /* qayta urinamiz */ }
+    }
+    setState('notfound');
+  };
+
+  const request = () => {
+    if (!canRequest) { setState('unsupported'); return; }
+    setState('waiting');
+    try {
+      tg.requestContact((ok) => {
+        if (ok) pollMe();
+        else setState('idle');
+      });
+    } catch (_) {
+      setState('unsupported');
+    }
+  };
+
+  if (state === 'notfound') {
+    return (
+      <Message icon="😔" title="Raqamingiz bazada topilmadi"
+        text="Ro'yxatdan o'tishda boshqa raqam yozilgan bo'lishi mumkin. Administratorga xabar yuborildi — tez orada ulab qo'yamiz."
+        action={{ label: 'Botga qaytish', onClick: () => tg?.close() }} />
+    );
+  }
+  if (state === 'unsupported') {
+    return (
+      <Message icon="📞" title="Raqamni bot orqali yuboring"
+        text="Botga /ulash deb yozing va chiqqan «📞 Raqamni yuborish» tugmasini bosing. So'ng kabinetni qayta oching."
+        action={{ label: 'Botga qaytish', onClick: () => tg?.close() }} />
+    );
+  }
+  return (
+    <div className="bg-white rounded-2xl p-6 border border-gray-200 text-center max-w-sm w-full mx-auto">
+      <div className="text-4xl mb-3" aria-hidden>👨‍👩‍👦</div>
+      <h2 className="font-extrabold text-gray-900 text-lg">Farzandingizni ulang</h2>
+      <p className="text-sm text-gray-500 mt-2">
+        Telefon raqamingizni tasdiqlang — u Roboschool'dagi ota-ona raqami bilan solishtiriladi
+        va farzandingiz kabinetga avtomatik ulanadi.
+      </p>
+      <button onClick={request} disabled={state === 'waiting'}
+        className="mt-4 w-full px-5 py-3 rounded-xl bg-teal-600 text-white text-sm font-bold disabled:opacity-60">
+        {state === 'waiting' ? 'Tekshirilmoqda…' : '📞 Raqamni yuborish'}
+      </button>
+      <p className="text-[11px] text-gray-400 mt-3">🔒 Raqam faqat shu tekshiruv uchun ishlatiladi</p>
     </div>
   );
 }

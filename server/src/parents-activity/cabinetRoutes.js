@@ -17,6 +17,9 @@ const router = require('express').Router();
 const logger = require('../config/logger');
 const config = require('./config');
 const cabinet = require('./services/cabinet');
+const avatar = require('./services/avatar');
+const state = require('./state');
+const prisma = require('../config/prisma');
 
 const MAX_AGE_SEC = 24 * 60 * 60; // initData 24 soat amal qiladi
 
@@ -73,6 +76,25 @@ function telegramAuth(req, res, next) {
   req.tgIsAdmin = String(user.id) === String(config.adminChatId);
   next();
 }
+
+// O'quvchi rasmi — <img> teg header yubora olmaydi, shuning uchun imzolangan havola orqali
+router.get('/avatar/:id', async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const s = await prisma.student.findUnique({ where: { id }, select: { avatar: true } });
+    if (!s || !avatar.isTelegramAvatar(s.avatar) || !avatar.verify(id, s.avatar, String(req.query.s || ''))) {
+      return res.status(404).end();
+    }
+    const file = await avatar.download(state.bot, s.avatar);
+    if (!file) return res.status(404).end();
+    res.set('Content-Type', file.type);
+    res.set('Cache-Control', 'private, max-age=86400');
+    return res.send(file.buffer);
+  } catch (err) {
+    logger.warn('[cabinet] rasm yuklanmadi', { error: err.message });
+    return res.status(404).end();
+  }
+});
 
 router.use(telegramAuth);
 

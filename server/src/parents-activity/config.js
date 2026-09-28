@@ -49,6 +49,10 @@ const config = {
     return client ? `${client.replace(/\/+$/, '')}/cabinet` : '';
   })(),
 
+  // Guruhga yutuq e'loni: shu balldan katta/teng yutuqlar e'lon qilinadi
+  announceMinPoints: intOr('ANNOUNCE_MIN_POINTS', 5),
+  announceCron: strOr('ANNOUNCE_CRON', '* * * * *'), // har daqiqada tekshiradi
+
   // TOP-N oylik chegirma
   topCount: intOr('TOP_DISCOUNT_COUNT', 5),
   topDiscountPercent: intOr('TOP_DISCOUNT_PERCENT', 40),
