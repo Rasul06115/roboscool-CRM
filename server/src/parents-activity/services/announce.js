@@ -83,9 +83,9 @@ function caption({ fullName, groupName, title, points, totalPoints }) {
 }
 
 /** E'lon yuboriladigan Telegram guruhlar. */
-async function targetChats(groupId) {
+async function targetChats(groupId, { all = false } = {}) {
   let rows;
-  if (config.announceScope === 'group') {
+  if (!all && config.announceScope === 'group') {
     if (!groupId) return [];
     rows = await prisma.$queryRaw`SELECT "chat_id" AS "chatId" FROM "group_chats" WHERE "group_id" = ${groupId}`;
   } else {

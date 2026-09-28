@@ -39,6 +39,27 @@ async function setupMenuButton() {
   }
 }
 
+/** Kabinetni ochadigan tugmali xabar. */
+async function sendCabinetButton(chatId) {
+  const { bot } = state;
+  if (!isHttps(config.miniAppUrl)) {
+    await bot.sendMessage(String(chatId), '⚠️ Kabinet hali sozlanmagan. Birozdan so\'ng urinib ko\'ring.');
+    return;
+  }
+  await bot.sendMessage(
+    String(chatId),
+    '📱 <b>Farzandingizning shaxsiy kabineti</b>\n\n' +
+      'Ballar, daraja, reyting, baholash mezonlari va davomat — barchasi bir joyda.\n\n' +
+      'Ochish uchun pastdagi tugmani bosing 👇',
+    {
+      parse_mode: 'HTML',
+      reply_markup: JSON.stringify({
+        inline_keyboard: [[{ text: '📱 Kabinetni ochish', web_app: { url: config.miniAppUrl } }]],
+      }),
+    }
+  );
+}
+
 function register() {
   const { bot, logger } = state;
 
@@ -76,4 +97,4 @@ function register() {
   logger.info('[cabinet] /kabinet buyrug\'i ro\'yxatga olindi');
 }
 
-module.exports = { register, setupMenuButton };
+module.exports = { register, setupMenuButton, sendCabinetButton };

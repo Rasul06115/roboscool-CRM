@@ -68,7 +68,8 @@ function register() {
         `/guruh_uzish — guruh ichida, ulanishni bekor qilish\n` +
         `/guruhlar — ulangan guruhlar ro'yxati\n\n` +
         `<b>📞 Ota-ona bog'lash:</b>\n` +
-        `Ota-ona /ulash yoki kabinet orqali raqamini yuboradi\n\n` +
+        `Ota-ona /start, /ulash yoki kabinet orqali raqamini yuboradi\n` +
+        `/ulash_elon — barcha guruhlarga "📞 Farzandimni ulash" tugmali e'lon\n\n` +
         `<b>Kabinet (Mini App):</b>\n` +
         `/kabinet — kabinetni ochish (admin istalgan o'quvchini ko'radi)\n\n` +
         `<b>Guruh:</b>\n` +
