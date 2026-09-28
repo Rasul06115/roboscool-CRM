@@ -31,7 +31,8 @@ const config = {
 
   // Ball tizimi
   activeRewardPoints: intOr('PARENTS_ACTIVE_POINTS', 3),
-  minMessagesForActive: intOr('PARENTS_MIN_MESSAGES', 3),
+  // Haftada kamida shuncha faollik (xabar + izoh + reaksiya) — aktiv hisoblanadi
+  minMessagesForActive: intOr('PARENTS_MIN_MESSAGES', 5),
   inactivityDays: intOr('PARENTS_INACTIVITY_DAYS', 7),
 
   // Avtomatik bog'lash: bitta qidiruvda nechtagacha o'quvchi bog'lansin
@@ -51,6 +52,9 @@ const config = {
 
   // Guruhga yutuq e'loni: shu balldan katta/teng yutuqlar e'lon qilinadi
   announceMinPoints: intOr('ANNOUNCE_MIN_POINTS', 5),
+  // 'all' — e'lon BARCHA ota-onalar guruhlariga (motivatsiya uchun)
+  // 'group' — faqat o'quvchining /guruh_ulash qilingan guruhiga
+  announceScope: strOr('ANNOUNCE_SCOPE', 'all') === 'group' ? 'group' : 'all',
   announceCron: strOr('ANNOUNCE_CRON', '* * * * *'), // har daqiqada tekshiradi
 
   // TOP-N oylik chegirma

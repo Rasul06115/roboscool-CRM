@@ -87,7 +87,7 @@ function rewardText({ firstName, points, studentNames = [], targetTelegramId }) 
     : '';
   return (
     `🎉 Tashakkur sizga, ${mention(targetTelegramId, firstName || 'Hurmatli ota-ona')}!\n\n` +
-    `Haftada aktiv xabarlaringiz uchun farzandingizga${students} ` +
+    `Haftadagi faolligingiz (xabar, izoh va reaksiyalar) uchun farzandingizga${students} ` +
     `<b>${points} ball</b> berildi ⭐\n\n` +
     `Faolligingiz farzandingizning muvaffaqiyatiga hissa qo'shadi 💪`
   );

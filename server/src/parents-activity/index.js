@@ -11,6 +11,7 @@ const cabinetCommands = require('./handlers/cabinetCommands');
 const contactLink = require('./handlers/contactLink');
 const photos = require('./handlers/photos');
 const groupLink = require('./handlers/groupLink');
+const reactions = require('./handlers/reactions');
 
 /**
  * Ota-onalar aktivlik moduli + oylik TOP chegirma.
@@ -46,6 +47,7 @@ function init({ bot, prisma, logger }) {
   contactLink.register();
   photos.register();
   groupLink.register();
+  reactions.register();
   scheduler.start();
 
   state.logger.info('[parents] ✅ Ota-onalar aktivlik moduli ishga tushdi');

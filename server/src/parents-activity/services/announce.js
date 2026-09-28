@@ -70,15 +70,52 @@ async function listLinkedChats() {
 
 // ==================== E'LON ====================
 
-function caption({ fullName, title, points, totalPoints }) {
+function caption({ fullName, groupName, title, points, totalPoints }) {
   const lvl = levelInfo(totalPoints);
   return (
     `🎉 <b>Tabriklaymiz!</b>\n\n` +
-    `👤 <b>${escapeHtml(fullName)}</b>\n` +
+    `👤 <b>${escapeHtml(fullName)}</b>` + (groupName ? ` <i>(${escapeHtml(groupName)})</i>` : '') + `\n` +
     `🏆 ${escapeHtml(title || 'Yutuq')}\n` +
     `⭐ <b>+${points} ball</b> — jami ${totalPoints} ball (${lvl.emoji} ${lvl.name})\n\n` +
-    `Barakalla, shunday davom et! 💪`
+    `Barakalla, shunday davom et! 💪\n\n` +
+    `👏 Tabriklab reaksiya qoldiring — ota-onalar faolligi ham farzandingizga ball olib keladi!`
   );
+}
+
+/** E'lon yuboriladigan Telegram guruhlar. */
+async function targetChats(groupId) {
+  let rows;
+  if (config.announceScope === 'group') {
+    if (!groupId) return [];
+    rows = await prisma.$queryRaw`SELECT "chat_id" AS "chatId" FROM "group_chats" WHERE "group_id" = ${groupId}`;
+  } else {
+    // Bot faol bo'lgan barcha guruhlar: /guruh_ulash qilinganlar + oxirgi 60 kunda xabar yozilganlar
+    rows = await prisma.$queryRaw`
+      SELECT DISTINCT "chat_id" AS "chatId" FROM (
+        SELECT "chat_id" FROM "group_chats"
+        UNION
+        SELECT "chat_id" FROM "parent_group_activity"
+        WHERE "message_count" > 0 AND "last_message_at" >= (NOW() AT TIME ZONE 'UTC') - INTERVAL '60 days'
+      ) t
+    `;
+  }
+  const allowed = config.allowedGroupChatIds;
+  return rows
+    .map((r) => String(r.chatId))
+    .filter((id) => id.startsWith('-'))
+    .filter((id) => allowed.length === 0 || allowed.includes(id));
+}
+
+/** Qaysi xabar qaysi o'quvchi haqida — reaksiyalarni to'g'ri hisoblash uchun. */
+async function rememberMessage(chatId, messageId, studentId) {
+  if (!messageId) return;
+  try {
+    await prisma.$executeRaw`
+      INSERT INTO "announcement_messages" ("chat_id", "message_id", "student_id")
+      VALUES (${String(chatId)}, ${Number(messageId)}::int, ${studentId})
+      ON CONFLICT DO NOTHING
+    `;
+  } catch (_) { /* jadval bo'lmasa — e'lon baribir ishlaydi */ }
 }
 
 /** Yangi yutuqlarni topib, guruhlarga e'lon qiladi. */
@@ -92,9 +129,11 @@ async function runAnnouncements() {
 
   const rows = await prisma.$queryRaw`
     SELECT a."id", a."title", a."points",
-           s."full_name" AS "fullName", s."avatar", s."total_points" AS "totalPoints", s."group_id" AS "groupId"
+           s."id" AS "studentId", s."full_name" AS "fullName", s."avatar",
+           s."total_points" AS "totalPoints", s."group_id" AS "groupId", g."name" AS "groupName"
     FROM "achievements" a
     JOIN "students" s ON s."id" = a."student_id"
+    LEFT JOIN "groups" g ON g."id" = s."group_id"
     LEFT JOIN "announced_achievements" x ON x."achievement_id" = a."id"
     WHERE a."created_at" >= (${since.toISOString()}::timestamptz AT TIME ZONE 'UTC')
       AND a."points" >= ${minPoints}::int
@@ -114,25 +153,21 @@ async function runAnnouncements() {
     `;
     if (!claimed.length) continue;
 
-    if (!r.groupId) continue;
-    const chats = await prisma.$queryRaw`
-      SELECT "chat_id" AS "chatId" FROM "group_chats" WHERE "group_id" = ${r.groupId}
-    `;
+    const chats = await targetChats(r.groupId);
     if (!chats.length) continue;
 
     const text = caption({ ...r, points: Number(r.points), totalPoints: Number(r.totalPoints) });
     const fileId = avatar.fileIdOf(r.avatar);
 
-    for (const c of chats) {
+    for (const chatId of chats) {
       try {
-        if (fileId) {
-          await bot.sendPhoto(c.chatId, fileId, { caption: text, parse_mode: 'HTML' });
-        } else {
-          await bot.sendMessage(c.chatId, text, { parse_mode: 'HTML' });
-        }
+        const sent = fileId
+          ? await bot.sendPhoto(chatId, fileId, { caption: text, parse_mode: 'HTML' })
+          : await bot.sendMessage(chatId, text, { parse_mode: 'HTML' });
+        await rememberMessage(chatId, sent?.message_id, r.studentId);
         announced += 1;
       } catch (err) {
-        logger.warn('[announce] yuborilmadi', { chatId: c.chatId, error: err.message });
+        logger.warn('[announce] yuborilmadi', { chatId, error: err.message });
       }
       await new Promise((res) => setTimeout(res, 300));
     }
@@ -148,5 +183,6 @@ module.exports = {
   unlinkChat,
   listLinkedChats,
   runAnnouncements,
+  targetChats,
   caption,
 };

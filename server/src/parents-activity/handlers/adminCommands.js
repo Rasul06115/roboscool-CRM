@@ -61,7 +61,10 @@ function register() {
         `Botga rasm yuboring, izohiga o'quvchi ismini yozing\n` +
         `/rasmsiz — rasmi yo'q o'quvchilar\n\n` +
         `<b>📣 Guruh e'loni (${config.announceMinPoints}+ ball):</b>\n` +
-        `<code>/guruh_ulash Guruh nomi</code> — Telegram guruh ichida yozing\n` +
+        (config.announceScope === 'all'
+          ? `Barcha ota-onalar guruhlariga avtomatik yuboriladi\n`
+          : `Faqat o'quvchining guruhiga yuboriladi\n`) +
+        `<code>/guruh_ulash Guruh nomi</code> — (ixtiyoriy) guruhni ro'yxatga qo'shish\n` +
         `/guruh_uzish — guruh ichida, ulanishni bekor qilish\n` +
         `/guruhlar — ulangan guruhlar ro'yxati\n\n` +
         `<b>📞 Ota-ona bog'lash:</b>\n` +
