@@ -58,7 +58,7 @@ function register() {
         `/parents_run_top5 — o'tgan oy TOP'ini e'lon qilish\n` +
         `<code>/parents_run_top5 2026-09</code> — aniq oy uchun\n\n` +
         `<b>📷 Rasmlar:</b>\n` +
-        `Botga rasm yuboring, izohiga o'quvchi ismini yozing\n` +
+        `Botga rasm yuboring va ism-familiyani izohga yoki keyingi xabarda yozing\n` +
         `/rasmsiz — rasmi yo'q o'quvchilar\n\n` +
         `<b>📣 Guruh e'loni (${config.announceMinPoints}+ ball):</b>\n` +
         (config.announceScope === 'all'
