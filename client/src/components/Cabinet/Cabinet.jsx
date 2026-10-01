@@ -214,6 +214,13 @@ function Profile({ data, dim }) {
   const { student, points, ranks, evaluation, attendance, achievements, discounts } = data;
   const activeDiscount = discounts.find((d) => d.current && !d.applied);
   const monthRank = ranks.month?.rank;
+  const resting = Boolean(ranks.month?.resting);
+  const restNote = (
+    <p className="text-xs text-gray-600 mt-2">
+      😴 Adolat uchun o'tgan oy g'oliblari bu oy reytingda <b>dam oladi</b> — boshqalarga ham imkoniyat.
+      Keyingi oydan yana TOP-5 uchun kurashadi! 💪
+    </p>
+  );
 
   return (
     <div className={`space-y-4 transition-opacity ${dim ? 'opacity-60' : ''}`}>
@@ -272,6 +279,12 @@ function Profile({ data, dim }) {
             {activeDiscount.periodLabel}da markaz bo'yicha {activeDiscount.rank}-o'rin.
             {' '}{activeDiscount.validMonthLabel} to'lovi uchun {activeDiscount.percent}% chegirma beriladi.
           </p>
+          {resting && restNote}
+        </div>
+      ) : resting ? (
+        <div className="rounded-2xl p-4 bg-indigo-50 border border-indigo-200">
+          <p className="font-extrabold text-indigo-800">🏆 O'tgan oy g'olibi!</p>
+          {restNote}
         </div>
       ) : monthRank && monthRank <= 5 ? (
         <div className="rounded-2xl p-4 bg-amber-50 border border-amber-200">

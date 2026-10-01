@@ -7,12 +7,15 @@
  *   GET   /api/rewards/discounts?validMonth=YYYY-MM   — chegirma olganlar ro'yxati
  *   PATCH /api/rewards/discounts/:id                  — { applied: true|false }
  *   POST  /api/rewards/run                            — { period?: "YYYY-MM" } (faqat ADMIN)
+ *   POST  /api/rewards/discounts/:id/congratulate     — { force?: true } guruhlar + kanalga tabriknoma
+ *   POST  /api/rewards/congratulate-all               — { validMonth } hali tabriklanmaganlarning barchasi
  */
 
 const router = require('express').Router();
 const { authenticate, authorize } = require('../middleware/auth');
 const logger = require('../config/logger');
 const top = require('./services/topReward');
+const congrats = require('./services/congrats');
 const { currentPeriod, isValidPeriod } = require('./utils/time');
 
 router.use(authenticate);
@@ -39,6 +42,35 @@ router.patch('/discounts/:id', authorize('ADMIN', 'MANAGER'), async (req, res, n
     if (!ok) return res.status(404).json({ success: false, error: 'Yozuv topilmadi' });
     res.json({ success: true });
   } catch (err) { next(err); }
+});
+
+function congratsError(err, res, next) {
+  if (/congrat/.test(String(err.message))) {
+    return res.status(400).json({
+      success: false,
+      error: "Tabriknoma ustunlari yo'q — bosqich9-migration.sql ni Neon'da ishga tushiring",
+    });
+  }
+  return next(err);
+}
+
+router.post('/discounts/:id/congratulate', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+  try {
+    const r = await congrats.congratulate(req.params.id, { force: req.body?.force === true });
+    if (r.notFound) return res.status(404).json({ success: false, error: r.error });
+    if (r.alreadySent) return res.status(409).json({ success: false, error: r.error, alreadySent: true });
+    if (!r.ok) return res.status(502).json({ success: false, error: r.error, data: r });
+    res.json({ success: true, data: r });
+  } catch (err) { congratsError(err, res, next); }
+});
+
+router.post('/congratulate-all', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+  try {
+    const q = String(req.body?.validMonth || '');
+    const validMonth = isValidPeriod(q) ? q : currentPeriod();
+    const r = await congrats.congratulateAll(validMonth);
+    res.json({ success: true, data: r });
+  } catch (err) { congratsError(err, res, next); }
 });
 
 router.post('/run', authorize('ADMIN'), async (req, res, next) => {

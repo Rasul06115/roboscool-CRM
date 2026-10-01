@@ -56,7 +56,9 @@ function register() {
         `<b>TOP-${config.topCount} chegirma (${config.topDiscountPercent}%):</b>\n` +
         `/parents_top5 — joriy oy reytingi (oldindan ko'rish)\n` +
         `/parents_run_top5 — o'tgan oy TOP'ini e'lon qilish\n` +
-        `<code>/parents_run_top5 2026-09</code> — aniq oy uchun\n\n` +
+        `<code>/parents_run_top5 2026-09</code> — aniq oy uchun\n` +
+        `🎉 Tabriknoma (guruhlar + kanal) — CRM Boshqaruv sahifasidagi tugma\n` +
+        `😴 O'tgan oy g'oliblari keyingi oy reytingda dam oladi\n\n` +
         `<b>📷 Rasmlar:</b>\n` +
         `Botga rasm yuboring va ism-familiyani izohga yoki keyingi xabarda yozing\n` +
         `/rasmsiz — rasmi yo'q o'quvchilar\n\n` +
@@ -238,7 +240,7 @@ function register() {
     if (msg.chat.type !== 'private' || !isAdmin(msg)) return;
     try {
       const period = currentPeriod();
-      const { top, next } = await topReward.computeRanking(period);
+      const { top, next, resting } = await topReward.computeRanking(period);
       if (top.length === 0) {
         await reply(msg.chat.id, `📭 ${periodLabel(period)}: hali ball berilmagan.`);
         return;
@@ -252,6 +254,9 @@ function register() {
         `<i>(oy hali tugamagan, natija o'zgarishi mumkin)</i>\n\n` +
         lines.join('\n');
       if (next) text += `\n\n➡️ Keyingi: ${escapeHtml(next.fullName)} — ${next.points} ball`;
+      if (resting && resting.length) {
+        text += `\n\n😴 Dam olmoqda (o'tgan oy g'oliblari): ${resting.map((r) => escapeHtml(r.fullName)).join(', ')}`;
+      }
       text += `\n\n🎁 Oy yakunida ${periodLabel(shiftPeriod(period, 1))} uchun ${config.topDiscountPercent}% chegirma e'lon qilinadi.`;
       await reply(msg.chat.id, text);
     } catch (err) {

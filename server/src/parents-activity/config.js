@@ -60,6 +60,14 @@ const config = {
   // TOP-N oylik chegirma
   topCount: intOr('TOP_DISCOUNT_COUNT', 5),
   topDiscountPercent: intOr('TOP_DISCOUNT_PERCENT', 40),
+  // G'olib keyingi oy reytingda "dam oladi" (true). O'chirish uchun: TOP_REST_WINNERS=0
+  topRestWinners: strOr('TOP_REST_WINNERS', '1') !== '0',
+  // Tabriknoma yuboriladigan kanal (bot kanalda ADMIN bo'lishi shart). O'chirish: CONGRATS_CHANNEL=off
+  congratsChannel: (() => {
+    const v = strOr('CONGRATS_CHANNEL', '');
+    if (v.toLowerCase() === 'off') return '';
+    return v || strOr('CHANNEL_ROBOSCHOOL_CHINOZ', '@roboschool_chinoz');
+  })(),
 
   // Cron (Railway serveri UTC). Toshkent = UTC+5.
   // Dushanba 09:00 Toshkent = 04:00 UTC

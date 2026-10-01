@@ -184,5 +184,6 @@ module.exports = {
   listLinkedChats,
   runAnnouncements,
   targetChats,
+  rememberMessage,
   caption,
 };

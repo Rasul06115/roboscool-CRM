@@ -34,21 +34,43 @@ function escapeHtml(s) {
 const MEDALS = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
 
 /**
+ * O'tgan oy g'oliblari — shu oy reytingda "dam oladi".
+ * @returns {Promise<Array<{studentId:string, fullName:string, rank:number}>>}
+ */
+async function getRestingStudents(period) {
+  if (!config.topRestWinners) return [];
+  const prev = shiftPeriod(period, -1);
+  try {
+    const rows = await prisma.$queryRaw`
+      SELECT "student_id", "student_name", "rank" FROM "monthly_discounts"
+      WHERE "period" = ${prev}
+      ORDER BY "rank" ASC
+    `;
+    return rows.map((r) => ({ studentId: r.student_id, fullName: r.student_name, rank: Number(r.rank) }));
+  } catch (_) {
+    return []; // jadval bo'lmasa — qoida qo'llanmaydi
+  }
+}
+
+/**
  * Berilgan oy uchun reyting (TOP limit + tenglikni aniqlash uchun bitta ortiqcha).
- * @returns {Promise<{ top: Array, next: Object|null }>}
+ * O'tgan oy g'oliblari hisobga olinmaydi (dam oladi).
+ * @returns {Promise<{ top: Array, next: Object|null, resting: Array }>}
  */
 async function computeRanking(period, limit = config.topCount) {
   const { start, end } = periodRange(period);
+  const resting = await getRestingStudents(period);
+  const restingIds = new Set(resting.map((r) => r.studentId));
 
   const grouped = await prisma.achievement.groupBy({
     by: ['studentId'],
     where: { createdAt: { gte: start, lt: end }, points: { gt: 0 } },
     _sum: { points: true },
     orderBy: { _sum: { points: 'desc' } },
-    take: limit * 4, // faol bo'lmaganlar chiqib ketsa ham yetarli bo'lsin
+    take: limit * 4 + restingIds.size, // faol bo'lmaganlar va dam oluvchilar chiqib ketsa ham yetarli bo'lsin
   });
 
-  if (grouped.length === 0) return { top: [], next: null };
+  if (grouped.length === 0) return { top: [], next: null, resting };
 
   const students = await prisma.student.findMany({
     where: { id: { in: grouped.map((g) => g.studentId) }, status: 'ACTIVE' },
@@ -57,7 +79,7 @@ async function computeRanking(period, limit = config.topCount) {
   const byId = new Map(students.map((s) => [s.id, s]));
 
   const ranked = grouped
-    .filter((g) => byId.has(g.studentId))
+    .filter((g) => byId.has(g.studentId) && !restingIds.has(g.studentId))
     .map((g) => {
       const s = byId.get(g.studentId);
       return {
@@ -70,7 +92,7 @@ async function computeRanking(period, limit = config.topCount) {
 
   const top = ranked.slice(0, limit).map((r, i) => ({ ...r, rank: i + 1 }));
   const next = ranked[limit] || null;
-  return { top, next };
+  return { top, next, resting };
 }
 
 /** O'quvchiga bog'langan ota-onalarning Telegram ID lari. */
@@ -94,6 +116,9 @@ function parentMessage({ fullName, rank, points, period, validMonth, percent }) 
     `<b>${percent}% chegirma</b>!\n\n` +
     `Chegirma to'lov vaqtida qo'llaniladi. ` +
     `Farzandingizga yangi zafarlar tilaymiz! 💪\n\n` +
+    (config.topRestWinners
+      ? `<i>ℹ️ Adolat uchun g'oliblar keyingi oy reytingda dam oladi — ${monthName(shiftPeriod(validMonth, 1))} oyidan yana qatnashadi.</i>\n\n`
+      : '') +
     `<i>Roboschool o'quv markazi</i> 🤖📚`
   );
 }
@@ -128,7 +153,7 @@ async function runMonthlyTop(period) {
   const percent = config.topDiscountPercent;
 
   logger.info('[top5] Oylik TOP hisoblanmoqda', { period: p });
-  const { top, next } = await computeRanking(p);
+  const { top, next, resting } = await computeRanking(p);
 
   const result = {
     period: p,
@@ -139,6 +164,7 @@ async function runMonthlyTop(period) {
     notified: 0,
     unlinked: [],
     tieWarning: null,
+    resting: resting.map((r) => r.fullName),
   };
 
   if (top.length === 0) {
@@ -237,7 +263,12 @@ async function sendAdminReport(r) {
   if (r.tieWarning) {
     text += `\n\n⚖️ ${escapeHtml(r.tieWarning)}`;
   }
-  text += `\n\n💡 Chegirma to'lov paytida qo'lda qo'llaniladi. CRM Boshqaruv sahifasida belgilab boring.`;
+  if (r.resting && r.resting.length > 0) {
+    text += `\n\n😴 Dam oldi (o'tgan oy g'oliblari): ${r.resting.map(escapeHtml).join(', ')}`;
+  }
+  text +=
+    `\n\n💡 Chegirma to'lov paytida qo'lda qo'llaniladi. CRM Boshqaruv sahifasida belgilab boring.` +
+    `\n🎉 Guruhlar va kanalga tabriknoma — Boshqaruv sahifasidagi «Tabriknoma» tugmasi.`;
 
   try {
     await bot.sendMessage(String(config.adminChatId), text, {
@@ -252,14 +283,30 @@ async function sendAdminReport(r) {
 // ==================== CRM API uchun ====================
 
 async function listDiscounts(validMonth) {
-  const rows = await prisma.$queryRaw`
-    SELECT "id", "student_id", "student_name", "group_name", "period", "valid_month",
-           "rank", "points", "discount_percent", "notified_count", "notified_at",
-           "applied", "applied_at", "created_at"
-    FROM "monthly_discounts"
-    WHERE "valid_month" = ${validMonth}
-    ORDER BY "rank" ASC
-  `;
+  let rows;
+  try {
+    rows = await prisma.$queryRaw`
+      SELECT "id", "student_id", "student_name", "group_name", "period", "valid_month",
+             "rank", "points", "discount_percent", "notified_count", "notified_at",
+             "applied", "applied_at", "created_at",
+             "congratulated_at", "congrats_groups", "congrats_channel"
+      FROM "monthly_discounts"
+      WHERE "valid_month" = ${validMonth}
+      ORDER BY "rank" ASC
+    `;
+  } catch (err) {
+    // 9-bosqich SQL hali ishga tushirilmagan bo'lsa — eski ustunlar bilan ishlaydi
+    if (!/congrat/.test(String(err.message))) throw err;
+    rows = await prisma.$queryRaw`
+      SELECT "id", "student_id", "student_name", "group_name", "period", "valid_month",
+             "rank", "points", "discount_percent", "notified_count", "notified_at",
+             "applied", "applied_at", "created_at"
+      FROM "monthly_discounts"
+      WHERE "valid_month" = ${validMonth}
+      ORDER BY "rank" ASC
+    `;
+    rows.congratsMissing = true;
+  }
   return rows.map((r) => ({
     id: r.id,
     studentId: r.student_id,
@@ -276,6 +323,9 @@ async function listDiscounts(validMonth) {
     notifiedAt: r.notified_at,
     applied: Boolean(r.applied),
     appliedAt: r.applied_at,
+    congratulatedAt: r.congratulated_at || null,
+    congratsGroups: Number(r.congrats_groups || 0),
+    congratsChannel: Boolean(r.congrats_channel),
   }));
 }
 
@@ -291,6 +341,7 @@ async function setApplied(id, applied) {
 
 module.exports = {
   computeRanking,
+  getRestingStudents,
   runMonthlyTop,
   listDiscounts,
   setApplied,

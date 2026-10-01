@@ -146,14 +146,24 @@ async function searchStudents(q) {
   return students.map(summary);
 }
 
-/** Oy ichidagi musbat ballar bo'yicha o'rin (TOP-5 chegirma bilan bir xil hisob). */
+/**
+ * Oy ichidagi musbat ballar bo'yicha o'rin (TOP-5 chegirma bilan bir xil hisob).
+ * O'tgan oy g'oliblari shu oy "dam oladi" — ular reytingga kirmaydi.
+ */
 async function monthlyRank(studentId, period) {
   const { start, end } = periodRange(period);
+  // topReward → cabinet aylanma bog'liqlik bo'lmasligi uchun shu yerda chaqiramiz
+  const resting = await require('./topReward').getRestingStudents(period);
+  const restingIds = new Set(resting.map((r) => r.studentId));
   const grouped = await prisma.achievement.groupBy({
     by: ['studentId'],
     where: { createdAt: { gte: start, lt: end }, points: { gt: 0 } },
     _sum: { points: true },
   });
+  if (restingIds.has(studentId)) {
+    const own = grouped.find((g) => g.studentId === studentId);
+    return { rank: null, total: 0, points: own ? Number(own._sum.points) || 0 : 0, resting: true };
+  }
   if (grouped.length === 0) return { rank: null, total: 0, points: 0 };
 
   const active = await prisma.student.findMany({
@@ -162,7 +172,7 @@ async function monthlyRank(studentId, period) {
   });
   const activeIds = new Set(active.map((a) => a.id));
   const list = grouped
-    .filter((g) => activeIds.has(g.studentId))
+    .filter((g) => activeIds.has(g.studentId) && !restingIds.has(g.studentId))
     .map((g) => ({ id: g.studentId, points: Number(g._sum.points) || 0 }))
     .sort((a, b) => b.points - a.points);
 
@@ -353,6 +363,7 @@ module.exports = {
   canView,
   searchStudents,
   getProfile,
+  monthlyRank,
   levelInfo,
   EVAL_FIELDS,
 };

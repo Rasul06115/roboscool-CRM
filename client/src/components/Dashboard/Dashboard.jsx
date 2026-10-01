@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { AlertTriangle, Eye, EyeOff, Search, Gift, Check } from 'lucide-react';
+import { AlertTriangle, Eye, EyeOff, Search, Gift, Check, PartyPopper, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api, { dashboardAPI, achievementsAPI } from '../../utils/api';
 import { formatMoney } from '../../utils/helpers';
@@ -43,6 +43,7 @@ export default function Dashboard() {
   const [discounts, setDiscounts] = useState([]);
   const [discountMonth] = useState(currentPeriodTashkent);
   const [savingId, setSavingId] = useState(null);
+  const [congratsId, setCongratsId] = useState(null);
   const { user } = useAuth();
   const canApply = user?.role === 'ADMIN' || user?.role === 'MANAGER';
 
@@ -67,6 +68,49 @@ export default function Dashboard() {
       toast.error('Saqlab bo\'lmadi');
     } finally {
       setSavingId(null);
+    }
+  };
+
+  // 🎉 Tabriknoma: o'quvchi rasmi + matn → barcha ota-onalar guruhlari va Roboschool kanali
+  const sendCongrats = async (d) => {
+    const again = Boolean(d.congratulatedAt);
+    const question = again
+      ? `${d.studentName} uchun tabriknoma oldin yuborilgan.\n\nQAYTA yuborilsinmi? (guruhlar va kanalda ikkinchi marta chiqadi)`
+      : `${d.studentName} uchun tabriknoma barcha ota-onalar guruhlari va Roboschool kanaliga yuborilsinmi?`;
+    if (!window.confirm(question)) return;
+    setCongratsId(d.id);
+    try {
+      const r = await api.post(`/rewards/discounts/${d.id}/congratulate`, again ? { force: true } : {});
+      const res = r.data || {};
+      setDiscounts(list => list.map(x => (x.id === d.id
+        ? { ...x, congratulatedAt: new Date().toISOString(), congratsGroups: res.groupsSent || 0, congratsChannel: Boolean(res.channelSent) }
+        : x)));
+      toast.success(`🎉 Yuborildi: ${res.groupsSent || 0} ta guruh${res.channelSent ? ' + kanal' : ''}`);
+      if (res.channelError) toast.error("Kanalga yuborilmadi — bot kanalda admin ekanini tekshiring", { duration: 6000 });
+    } catch (_) {
+      // xato matni api.js da ko'rsatiladi
+    } finally {
+      setCongratsId(null);
+    }
+  };
+
+  const sendAllCongrats = async () => {
+    const left = discounts.filter(d => !d.congratulatedAt);
+    if (!left.length) return;
+    if (!window.confirm(`${left.length} ta g'olib uchun tabriknoma barcha guruhlar va kanalga yuborilsinmi?`)) return;
+    setCongratsId('all');
+    try {
+      const r = await api.post('/rewards/congratulate-all', { validMonth: discountMonth });
+      const res = r.data || {};
+      const fresh = await api.get('/rewards/discounts', { params: { validMonth: discountMonth } });
+      setDiscounts(Array.isArray(fresh.data) ? fresh.data : []);
+      toast.success(`🎉 ${res.sent || 0} ta tabriknoma yuborildi`);
+      if (res.channelError) toast.error("Kanalga yuborilmadi — bot kanalda admin ekanini tekshiring", { duration: 6000 });
+      if (res.failed) toast.error(`${res.failed} tasi yuborilmadi`);
+    } catch (_) {
+      // xato matni api.js da ko'rsatiladi
+    } finally {
+      setCongratsId(null);
     }
   };
 
@@ -99,6 +143,12 @@ export default function Dashboard() {
   ];
 
   const rankMedals = ['🥇', '🥈', '🥉'];
+
+  // O'tgan oy g'oliblari (shu oy chegirma olganlar) bu oy reytingda dam oladi
+  const restingIds = new Set(discounts.map(d => d.studentId));
+  const monthlyAll = nominations?.monthly || [];
+  const monthlyEligible = monthlyAll.filter(s => !restingIds.has(s.studentId));
+  const monthlyResting = monthlyAll.filter(s => restingIds.has(s.studentId));
 
   // Global reytingdagi o'rin (qidiruvda ham to'g'ri raqam chiqishi uchun)
   const rankOf = (id) => leaderboard.findIndex(s => s.id === id) + 1;
@@ -149,11 +199,11 @@ export default function Dashboard() {
               </p>
             </div>
             <div className="p-5">
-              {nominations.monthly.length === 0 ? (
+              {monthlyEligible.length === 0 ? (
                 <p className="text-center text-gray-400 py-6">Bu oyda ball berilmagan</p>
               ) : (
                 <div className="space-y-2">
-                  {nominations.monthly.slice(0, 5).map((s, i) => (
+                  {monthlyEligible.slice(0, 5).map((s, i) => (
                     <div key={s.studentId} className={`flex items-center justify-between p-3 rounded-xl transition-all ${
                       i === 0 ? 'bg-amber-100 border-2 border-amber-300 shadow-sm' : 'bg-white border border-gray-100'
                     }`}>
@@ -179,6 +229,11 @@ export default function Dashboard() {
                     </div>
                   ))}
                 </div>
+              )}
+              {monthlyResting.length > 0 && (
+                <p className="mt-3 text-[11px] text-gray-500 bg-white/70 border border-dashed border-amber-200 rounded-lg px-3 py-2">
+                  😴 <b>Dam olmoqda</b> (o'tgan oy g'oliblari): {monthlyResting.map(s => s.fullName).join(', ')}
+                </p>
               )}
             </div>
           </div>
@@ -232,7 +287,7 @@ export default function Dashboard() {
       {discounts.length > 0 && (
         <div className="bg-white rounded-2xl border border-rose-200 overflow-hidden">
           <div className="p-5 bg-gradient-to-r from-rose-500 to-pink-500 text-white">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center"><Gift size={24} /></div>
                 <div>
@@ -240,14 +295,25 @@ export default function Dashboard() {
                   <p className="text-rose-100 text-sm">{discounts[0].periodLabel} oyining TOP-{discounts.length} o'quvchisi</p>
                 </div>
               </div>
-              <span className="text-xs font-bold bg-white/20 rounded-full px-3 py-1 shrink-0">
-                {discounts.filter(d => d.applied).length}/{discounts.length} qo'llanildi
-              </span>
+              <div className="flex sm:flex-col items-center sm:items-end flex-wrap gap-1.5 shrink-0">
+                <span className="text-xs font-bold bg-white/20 rounded-full px-3 py-1">
+                  {discounts.filter(d => d.applied).length}/{discounts.length} qo'llanildi
+                </span>
+                {canApply && discounts.some(d => !d.congratulatedAt) && (
+                  <button
+                    onClick={sendAllCongrats}
+                    disabled={congratsId !== null}
+                    className="flex items-center gap-1.5 text-xs font-bold bg-white text-rose-600 rounded-full px-3 py-1 hover:bg-rose-50 disabled:opacity-60"
+                  >
+                    <Send size={12} /> {congratsId === 'all' ? 'Yuborilmoqda...' : 'Barchasini tabriklash'}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
           <div className="p-5 space-y-2">
             {discounts.map(d => (
-              <div key={d.id} className={`flex items-center justify-between gap-3 p-3 rounded-xl border ${d.applied ? 'bg-green-50 border-green-200' : 'bg-white border-gray-100'}`}>
+              <div key={d.id} className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 p-3 rounded-xl border ${d.applied ? 'bg-green-50 border-green-200' : 'bg-white border-gray-100'}`}>
                 <div className="flex items-center gap-3 min-w-0">
                   <span className="text-xl w-8 text-center shrink-0">{rankMedals[d.rank - 1] || `${d.rank}.`}</span>
                   <div className="min-w-0">
@@ -255,18 +321,35 @@ export default function Dashboard() {
                     <p className="text-[10px] text-gray-400 truncate">
                       {d.groupName || '—'} • {d.points} ball • {d.notifiedCount > 0 ? '✉️ ota-onaga xabar ketdi' : "⚠️ ota-onaga xabar ketmagan"}
                     </p>
+                    {d.congratulatedAt && (
+                      <p className="text-[10px] text-pink-600 font-semibold truncate">
+                        🎉 Tabriknoma: {d.congratsGroups} ta guruh{d.congratsChannel ? ' + kanal' : ''}
+                      </p>
+                    )}
                   </div>
                 </div>
                 {canApply ? (
+                  <div className="shrink-0 flex flex-row items-center gap-1.5 pl-11 sm:pl-0">
+                  <button
+                    onClick={() => sendCongrats(d)}
+                    disabled={congratsId !== null}
+                    title={d.congratulatedAt ? 'Qayta yuborish' : "Guruhlar va kanalga tabriknoma"}
+                    className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all disabled:opacity-50 ${
+                      d.congratulatedAt ? 'bg-pink-50 text-pink-600 hover:bg-pink-100' : 'bg-pink-500 text-white hover:bg-pink-600'
+                    }`}
+                  >
+                    <PartyPopper size={14} /> {congratsId === d.id ? 'Yuborilmoqda...' : d.congratulatedAt ? 'Yuborildi' : 'Tabriknoma'}
+                  </button>
                   <button
                     onClick={() => toggleApplied(d)}
                     disabled={savingId === d.id}
-                    className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50 ${
+                    className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all disabled:opacity-50 ${
                       d.applied ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
                     <Check size={14} /> {d.applied ? "Qo'llanildi" : "To'lovda qo'llash"}
                   </button>
+                  </div>
                 ) : (
                   <span className={`shrink-0 text-xs font-bold ${d.applied ? 'text-green-600' : 'text-gray-400'}`}>
                     {d.applied ? "✅ Qo'llanildi" : 'Kutilmoqda'}
