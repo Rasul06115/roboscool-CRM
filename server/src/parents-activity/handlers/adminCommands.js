@@ -48,7 +48,7 @@ function register() {
         `/parents_links — bog'langan ota-onalar\n\n` +
         `<b>Qo'lda ishga tushirish:</b>\n` +
         `/parents_run_rewards — mukofotlash\n` +
-        `/parents_run_reminders — nofaollarga eslatma\n` +
+        `/parents_run_reminders — nofaollarga eslatma (avtomatik: dushanba 08:00)\n` +
         `/parents_run_subs — obuna tekshiruvi\n\n` +
         `<b>Bog'lash:</b>\n` +
         `<code>/parents_link 123456789 Aziz Karimov</code>\n` +
@@ -212,7 +212,7 @@ function register() {
     await reply(msg.chat.id, '⏳ Eslatmalar yuborilmoqda...');
     try {
       const r = await scheduler.runInactivityReminders();
-      await reply(msg.chat.id, `✅ Yakunlandi. Eslatma: <b>${r.remindersSent}</b>`);
+      await reply(msg.chat.id, `✅ Yakunlandi. Eslatma: <b>${r.remindersSent}</b> ta (${r.groups} ta guruhda)`);
     } catch (err) {
       logger.error('[parents] run_reminders', { error: err.message });
       await reply(msg.chat.id, `❌ Xato: ${err.message}`);

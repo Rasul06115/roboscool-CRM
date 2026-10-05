@@ -29,11 +29,20 @@ async function onAnyMessage(msg) {
       if (msg.text && msg.text.startsWith('/')) return; // buyruqlarni sanamaymiz
       if (!isAllowedGroup(msg.chat.id)) return;
 
+      // Guruhga kirdi/chiqdi kabi xizmat xabarlari faollik emas
+      if (msg.new_chat_members || msg.left_chat_member || msg.pinned_message) return;
+
       const sentAt = msg.date ? new Date(msg.date * 1000) : new Date();
       await activity.recordMessage({
         telegramId: msg.from.id,
         chatId: msg.chat.id,
         sentAt,
+      });
+      // Eslatma va tashakkur shu xabarga REPLY qilinadi
+      await activity.rememberLastMessage({
+        telegramId: msg.from.id,
+        chatId: msg.chat.id,
+        messageId: msg.message_id,
       });
       return;
     }
@@ -45,16 +54,9 @@ async function onAnyMessage(msg) {
 function register() {
   const { bot, logger } = state;
   // CRM botining o'z 'message' handleri saqlanadi — biz qo'shimcha listener qo'shamiz.
+  // 'message' hodisasi BARCHA turdagi xabarlarda (matn, rasm, stiker, ovoz...) chiqadi.
+  // (Oldin rasm/stiker uchun alohida listener ham bor edi — ular ikki marta sanalardi.)
   bot.on('message', onAnyMessage);
-
-  // Media xabarlar ham guruh aktivligiga kiradi (matnsiz)
-  bot.on('sticker', onAnyMessage);
-  bot.on('photo', onAnyMessage);
-  bot.on('video', onAnyMessage);
-  bot.on('voice', onAnyMessage);
-  bot.on('video_note', onAnyMessage);
-  bot.on('animation', onAnyMessage);
-  bot.on('document', onAnyMessage);
 
   logger.info('[parents] Xabar handlerlari o\'rnatildi');
 }

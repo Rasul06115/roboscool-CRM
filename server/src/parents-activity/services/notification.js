@@ -12,11 +12,16 @@ function escapeHtml(s) {
 /**
  * Xabar yuborish va parent_bot_notifications ga log yozish.
  */
-async function sendAndLog({ chatId, text, replyToMessageId, type, targetTelegramId }) {
+async function sendAndLog({ chatId, text, replyToMessageId, type, targetTelegramId, replyMarkup }) {
   const { bot, prisma, logger } = state;
   try {
     const options = { parse_mode: 'HTML', disable_web_page_preview: true };
-    if (replyToMessageId) options.reply_to_message_id = replyToMessageId;
+    if (replyToMessageId) {
+      options.reply_to_message_id = Number(replyToMessageId);
+      // Ota-ona xabarini o'chirib yuborgan bo'lsa ham xabar baribir yuborilsin
+      options.allow_sending_without_reply = true;
+    }
+    if (replyMarkup) options.reply_markup = JSON.stringify(replyMarkup);
 
     const sent = await bot.sendMessage(String(chatId), text, options);
 
@@ -72,12 +77,45 @@ function mention(telegramId, name) {
   return `<a href="tg://user?id=${String(telegramId)}">${escapeHtml(cleanName(name))}</a>`;
 }
 
-function inactivityText({ firstName, targetTelegramId }) {
+/** "📱 Farzandimning natijalari" — botdagi shaxsiy kabinetga olib boradi. */
+function resultsButton() {
+  if (!state.botUsername) return null;
+  return {
+    inline_keyboard: [[
+      { text: '📱 Farzandimning natijalari', url: `https://t.me/${state.botUsername}?start=kabinet` },
+    ]],
+  };
+}
+
+// Har hafta bir xil matn zerikarli bo'lmasligi uchun bir nechta variant
+const INACTIVE_VARIANTS = [
+  (n) =>
+    `👋 Assalomu alaykum, ${n}!\n\n` +
+    `🤔 Sizga farzandingizning o'qishda erishayotgan natijalari qiziq emasmi? 🎓📚\n\n` +
+    `🤖 Farzandingiz har darsda robot yig'ib, dastur yozib, yangi bilimlarni o'rganmoqda. ` +
+    `Uning muvaffaqiyatlarini birga kuzatib boraylik! 🚀`,
+  (n) =>
+    `🌟 ${n}, farzandingiz sizning e'tiboringizni kutmoqda! 💙\n\n` +
+    `👨‍👩‍👦 Ota-ona qiziqishi — bolaning eng katta motivatsiyasi. ` +
+    `Guruhdagi yangiliklarga bitta reaksiya 👍 yoki izoh ✍️ ham farzandingizni ruhlantiradi! 💪`,
+  (n) =>
+    `📚 ${n}, o'tgan hafta guruhda sizni ko'rmadik 😊\n\n` +
+    `🏆 Farzandingiz ballar to'plab, reytingda ko'tarilmoqda. ` +
+    `Uning yutuqlari, baholari va davomatini bir tugma bilan ko'ring 👇`,
+];
+
+function inactivityText({ firstName, targetTelegramId, count = 0, variant }) {
+  const n = mention(targetTelegramId, firstName || 'Hurmatli ota-ona');
+  const min = require('../config').minMessagesForActive;
+  const v = Number.isInteger(variant) ? variant : Math.floor(Math.random() * INACTIVE_VARIANTS.length);
+  const body = INACTIVE_VARIANTS[v % INACTIVE_VARIANTS.length](n);
+  const progress = count > 0
+    ? `\n\n📊 O'tgan hafta faolligingiz: <b>${count} / ${min}</b> — yana ozgina qoldi! 🔥`
+    : '';
   return (
-    `👋 ${mention(targetTelegramId, firstName || 'Hurmatli ota-ona')}, ` +
-    `sizga farzandingiz o'qishida erishayotgan natijalari qiziq emasmi? 🎓📚\n\n` +
-    `Guruhda faol qatnashib, farzandingizning muvaffaqiyatlaridan xabardor bo'lib turing. ` +
-    `Har haftalik aktivlik uchun farzandingizga qo'shimcha ballar beriladi ⭐`
+    body + progress +
+    `\n\n⭐ Haftasiga kamida <b>${min} marta</b> faol bo'lsangiz (xabar, izoh yoki reaksiya), ` +
+    `farzandingizga <b>+3 ball</b> beriladi! 🎁`
   );
 }
 
@@ -109,6 +147,8 @@ module.exports = {
   wasNotifiedRecently,
   inactivityText,
   rewardText,
+  resultsButton,
+  INACTIVE_VARIANTS,
   subscriptionText,
   escapeHtml,
   cleanName,

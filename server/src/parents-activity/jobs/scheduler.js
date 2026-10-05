@@ -17,14 +17,15 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-/** Guruh a'zosimi (ping yuborishdan oldin tekshiramiz). */
-async function isGroupMember(chatId, telegramId) {
+/** Guruhdagi holati: 'creator' | 'administrator' | 'member' | 'restricted' | 'left' | null */
+async function memberStatus(chatId, telegramId) {
   const { bot } = state;
   try {
     const m = await bot.getChatMember(String(chatId), Number(telegramId));
-    return ['creator', 'administrator', 'member', 'restricted'].includes(m.status);
+    if (m.user && m.user.is_bot) return 'bot';
+    return m.status;
   } catch (_) {
-    return false;
+    return null;
   }
 }
 
@@ -77,10 +78,12 @@ async function runWeeklyRewards() {
       if (created) awardedStudents += 1;
     }
 
-    // Guruhga tashakkur xabari (ota-onani teglab)
+    // Guruhga tashakkur xabari (ota-onani teglab, oxirgi xabariga reply + tugma)
     const firstName = await getFirstName(act.telegramId);
     await notification.sendAndLog({
       chatId: act.chatId,
+      replyToMessageId: await activity.lastMessageId(act.telegramId, act.chatId),
+      replyMarkup: notification.resultsButton(),
       text: notification.rewardText({
         firstName,
         points: config.activeRewardPoints,
@@ -109,7 +112,7 @@ async function runWeeklyRewards() {
         String(config.adminChatId),
         `ℹ️ Ota-onalar moduli: ${unlinkedActive} ta faol ota-ona hech qanday o'quvchiga ` +
           `bog'lanmagani uchun ball ololmadi.\n` +
-          `Ular botga farzandi ismini yozsa avtomatik bog'lanadi, yoki /parents_link bilan qo'lda bog'lang.`,
+          `Ular botda /ulash orqali telefon raqamini yuborsa, keyingi haftadan ball oladi. /ulash_elon — guruhlarga eslatish.`,
         { disable_web_page_preview: true }
       );
     } catch (_) { /* ignore */ }
@@ -119,56 +122,74 @@ async function runWeeklyRewards() {
 }
 
 /**
- * Nofaol (o'tgan hafta guruhda xabar yozmagan) bog'langan ota-onalarga eslatma.
+ * Nofaol ota-onalarga eslatma (har dushanba 08:00).
+ *
+ * Kimga: o'tgan hafta guruhda faolligi chegaradan (default 5) kam bo'lganlar —
+ *   - oxirgi 60 kunda shu guruhda yozgan/reaksiya qo'ygan har kim,
+ *   - telefon orqali ulangan ota-onalar (guruh a'zosi bo'lsa).
+ * Kimga EMAS: guruh adminlari (o'qituvchilar), botlar, o'quvchilarning o'zlari,
+ *   oxirgi 6 kunda eslatma olganlar.
+ * Har bir eslatma ota-onaning oxirgi xabariga REPLY qilinadi va
+ * "📱 Farzandimning natijalari" tugmasi bilan yuboriladi.
  */
 async function runInactivityReminders() {
   const { logger } = state;
   const weekStart = previousWeekStart();
   logger.info('[parents] Nofaollik eslatmalari boshlandi', { week: formatWeek(weekStart) });
 
-  // Nomzodlar: bog'langan ota-onalar (ular aniq Roboschool ota-onasi)
-  const links = await link.listLinks(10000);
-  const candidateIds = [...new Set(links.map((l) => l.telegramId))];
-
-  const groups = await activity.getGroupChatIds();
+  const groups = (await announce.targetChats(null, { all: true }).catch(() => null)) || (await activity.getGroupChatIds());
   const cooldownSince = daysAgo(config.reminderCooldownDays);
+  const button = notification.resultsButton();
 
   let remindersSent = 0;
+  let skippedAdmins = 0;
+  const perGroup = [];
 
   for (const groupChatId of groups) {
-    const inactiveIds = await activity.getInactiveTelegramIdsForGroup(
-      groupChatId,
-      weekStart,
-      candidateIds
-    );
+    let candidates = [];
+    try {
+      candidates = await activity.getReminderCandidates(groupChatId, weekStart, config.minMessagesForActive);
+    } catch (err) {
+      logger.error('[parents] eslatma nomzodlari xato', { chatId: groupChatId, error: err.message });
+      continue;
+    }
 
-    for (const tid of inactiveIds) {
+    let sentHere = 0;
+    for (const c of candidates) {
+      if (sentHere >= config.reminderMaxPerGroup) break;
+      if (String(c.telegramId) === String(config.adminChatId)) continue;
+
       // Yaqinda eslatma yuborilgan bo'lsa — o'tkazamiz
-      const recently = await notification.wasNotifiedRecently(tid, 'INACTIVITY_REPLY', cooldownSince);
+      const recently = await notification.wasNotifiedRecently(c.telegramId, 'INACTIVITY_REPLY', cooldownSince);
       if (recently) continue;
 
-      // Faqat shu guruh a'zolariga
-      const member = await isGroupMember(groupChatId, tid);
-      if (!member) continue;
+      // Faqat shu guruhning oddiy a'zolariga (adminlar/o'qituvchilar va botlar — yo'q)
+      const status = await memberStatus(groupChatId, c.telegramId);
+      if (status === 'creator' || status === 'administrator') { skippedAdmins += 1; continue; }
+      if (status !== 'member' && status !== 'restricted') continue;
 
-      const firstName = await getFirstName(tid);
+      const firstName = await getFirstName(c.telegramId);
       const sent = await notification.sendAndLog({
         chatId: groupChatId,
-        text: notification.inactivityText({ firstName, targetTelegramId: tid }),
+        text: notification.inactivityText({ firstName, targetTelegramId: c.telegramId, count: c.count }),
+        replyToMessageId: await activity.lastMessageId(c.telegramId, groupChatId),
+        replyMarkup: button,
         type: 'INACTIVITY_REPLY',
-        targetTelegramId: tid,
+        targetTelegramId: c.telegramId,
       });
 
       if (sent) {
-        await activity.markReminded({ telegramId: tid, chatId: groupChatId, weekStart });
+        await activity.markReminded({ telegramId: c.telegramId, chatId: groupChatId, weekStart });
         remindersSent += 1;
-        await sleep(150);
+        sentHere += 1;
+        await sleep(1200); // Telegram guruh limiti: ~20 xabar/daqiqa
       }
     }
+    if (sentHere) perGroup.push(sentHere);
   }
 
-  logger.info('[parents] Nofaollik eslatmalari tugadi', { remindersSent });
-  return { remindersSent };
+  logger.info('[parents] Nofaollik eslatmalari tugadi', { remindersSent, groups: perGroup.length, skippedAdmins });
+  return { remindersSent, groups: perGroup.length };
 }
 
 /**
@@ -216,11 +237,21 @@ async function runSubscriptionCheck() {
 function start() {
   const { logger } = state;
 
+  // Dushanba 08:00 — nofaollarga eslatma
+  cron.schedule(config.reminderCron, async () => {
+    logger.info('[parents] CRON nofaollik eslatmalari');
+    try {
+      await runInactivityReminders();
+    } catch (err) {
+      logger.error('[parents] CRON eslatma xato', { error: err.message });
+    }
+  });
+
+  // Dushanba 09:00 — faollarga tashakkur + ball
   cron.schedule(config.weeklyCron, async () => {
-    logger.info('[parents] CRON haftalik ish');
+    logger.info('[parents] CRON haftalik mukofot');
     try {
       await runWeeklyRewards();
-      await runInactivityReminders();
     } catch (err) {
       logger.error('[parents] CRON haftalik xato', { error: err.message });
     }
@@ -262,6 +293,7 @@ function start() {
 
   logger.info('[parents] Cron o\'rnatildi', {
     weekly: config.weeklyCron,
+    reminders: config.reminderCron,
     subs: config.dailySubscriptionCron,
     monthlyTop: config.monthlyTopCron,
     announce: config.announceCron,

@@ -39,7 +39,10 @@ const config = {
   autoLinkMaxStudents: intOr('PARENTS_AUTOLINK_MAX', 3),
 
   // Bir odamga eslatma qayta yubormaslik oralig'i (kun)
-  reminderCooldownDays: intOr('PARENTS_REMINDER_COOLDOWN_DAYS', 7),
+  // (haftalik ish aniq 7 kunda takrorlangani uchun 6 kun — aks holda keyingi dushanba ham "yaqinda" deb o'tkazib yuboriladi)
+  reminderCooldownDays: intOr('PARENTS_REMINDER_COOLDOWN_DAYS', 6),
+  // Bitta guruhga bir martada eng ko'pi bilan nechta eslatma (spam bo'lmasligi uchun)
+  reminderMaxPerGroup: intOr('PARENTS_REMINDER_MAX_PER_GROUP', 40),
 
   // Telegram Mini App (shaxsiy kabinet) manzili — https bo'lishi shart.
   // MINI_APP_URL berilmasa, CLIENT_URL + "/cabinet" ishlatiladi.
@@ -70,8 +73,10 @@ const config = {
   })(),
 
   // Cron (Railway serveri UTC). Toshkent = UTC+5.
-  // Dushanba 09:00 Toshkent = 04:00 UTC
+  // Dushanba 09:00 Toshkent = 04:00 UTC — faollarga tashakkur + ball
   weeklyCron: strOr('PARENTS_WEEKLY_CRON', '0 4 * * 1'),
+  // Dushanba 08:00 Toshkent = 03:00 UTC — nofaollarga eslatma
+  reminderCron: strOr('PARENTS_REMINDER_CRON', '0 3 * * 1'),
   // Har kuni 20:00 Toshkent = 15:00 UTC
   dailySubscriptionCron: strOr('PARENTS_SUBS_CRON', '0 15 * * *'),
   // Har oyning 1-sanasi 10:00 Toshkent = 05:00 UTC
